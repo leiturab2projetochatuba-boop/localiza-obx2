@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Consulta de Ligações</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:20px; }
+    .container { max-width:900px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.1);} 
+    h1 { margin-top:0; }
+    input { width:100%; padding:10px; margin-bottom:15px; font-size:16px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:8px; border-bottom:1px solid #ddd; text-align:left; }
+    th { background:#f0f0f0; }
+    a { color:#0066cc; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pesquisa por Nº de Ligação</h1>
+    <input type="text" id="search" placeholder="Digite o Numero da Ligação" />
+
+    <table id="resultTable" style="display:none">
+      <thead>
+  <tr>
+    <th>Nº Ligação</th>
+    <th>Nome do Cliente</th>
+    <th>Endereço Completo</th>
+    <th>Mapa</th>
+  </tr>
+</thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+<script>
+// ============================
+// CARREGAMENTO DA BASE EM /ImportData
+// ============================
+// Ao acessar /ImportData, a base é carregada automaticamente
+
+
+async function loadData() {
+  try {
+    const response = await fetch('ImportData/data.csv');
+    const csvText = await response.text();
+    window.data = parseCSV(csvText);
+  } catch (e) {
+    console.error('Erro ao carregar base:', e);
+    window.data = [];
+  }
+}
+
+function parseCSV(csv) {
+  const lines = csv.split(/
+
+?
+/).filter(l => l.trim() !== "");
+  if (lines.length === 0) return [];
+
+  const separator = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(separator).map(h => h.trim());
+  const data = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].match(/("[^"]*"|[^;]+)(?=;|$)/g);
+    if (!values) continue;
+
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = values[idx]
+        ? values[idx].replace(/^"|"$/g, '').trim()
+        : '';
+    });
+    data.push(obj);
+  }
+  return data;
+}
+
+const searchInput = document.getElementById('search');
+const table = document.getElementById('resultTable');
+const tbody = table.querySelector('tbody');
+
+searchInput.addEventListener('input', () => {
+  const value = searchInput.value.trim();
+  tbody.innerHTML = '';
+
+  if (!value || !window.data) {
+    table.style.display = 'none';
+    return;
+  }
+
+  const results = window.data.filter(d => d.NUM_LIGACAO === value);
+
+  results.forEach(r => {
+    const tr = document.createElement('tr');
+    const mapLink = `https://www.google.com/maps?q=${r.LATITUDE},${r.LONGITUDE}`;
+
+    tr.innerHTML = `
+      <td>${r.NOME_CLIENTE}</td>
+      <td>${r.ENDERECO_COMPLETO}</td>
+      <td>${r.CLASSIFICACAO}</td>
+      <td>${r.OBSERVACAO}</td>
+      <td><a href="${mapLink}" target="_blank">Ver no mapa</a></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.style.display = results.length ? 'table' : 'none';
+});
+
+// Carrega automaticamente ao abrir o site
+loadData();
+</script>
+</body>
+</html>
