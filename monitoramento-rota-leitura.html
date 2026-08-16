@@ -553,6 +553,10 @@ function excelSerialToUTCDate(serial){
 
 function parseDataLeitura(raw){
   if(raw===''||raw===null||raw===undefined) return null;
+  if(raw instanceof Date){
+    if(isNaN(raw.getTime())) return null;
+    return new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()));
+  }
   if(typeof raw==='number'){
     if(raw <= 0) return null;
     const d = excelSerialToUTCDate(Math.floor(raw));
@@ -564,8 +568,12 @@ function parseDataLeitura(raw){
   let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   if(m){
     let [,d,mo,y] = m;
+    d = +d; mo = +mo;
     if(y.length===2) y = '20'+y;
-    return new Date(Date.UTC(+y, +mo-1, +d));
+    // source data is expected to be dd/mm/yyyy (pt-BR); if that reading is impossible
+    // (month > 12) but swapping the two makes it valid, assume it was mm/dd/yyyy instead
+    if(mo > 12 && d <= 12){ const t=d; d=mo; mo=t; }
+    return new Date(Date.UTC(+y, mo-1, d));
   }
   // yyyy-mm-dd or yyyy/mm/dd (ISO-like, optionally with a time portion)
   m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
@@ -587,6 +595,11 @@ function secondsToHHMMSS(secs){
 
 function parseHoraLeitura(raw){
   if(raw===''||raw===null||raw===undefined) return {str:'', seconds:-1};
+  if(raw instanceof Date){
+    if(isNaN(raw.getTime())) return {str:'', seconds:-1};
+    const secs = raw.getUTCHours()*3600 + raw.getUTCMinutes()*60 + raw.getUTCSeconds();
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
   if(typeof raw==='number'){
     const secs = Math.round(raw*86400);
     return {str:secondsToHHMMSS(secs), seconds:secs};
@@ -683,6 +696,7 @@ async function handleFile(e){
   const ext = file.name.split('.').pop().toLowerCase();
   try{
     let aoa;
+    let hyperlinks = null;
     if(ext==='xlsx' || ext==='xls'){
       if(typeof XLSX === 'undefined'){
         alert('Não foi possível carregar o componente de leitura de planilhas (XLSX). Verifique a conexão com a internet e recarregue a página, ou importe o arquivo em formato .csv/.txt.');
@@ -692,11 +706,12 @@ async function handleFile(e){
       const wb = XLSX.read(buf, {type:'array'});
       const ws = wb.Sheets[wb.SheetNames[0]];
       aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+      hyperlinks = buildHyperlinkMap(ws);
     } else {
       const text = await file.text();
       aoa = parseDelimitedText(text);
     }
-    const records = buildRecords(aoa);
+    const records = buildRecords(aoa, hyperlinks);
     if(!records.length){
       alert('Não foi possível reconhecer as colunas da base. Verifique se o arquivo possui o cabeçalho esperado (DSC_COLABORADOR, SEQUENCIAL_LEITURA, LATITUDE, LONGITUDE, etc).');
       return;
@@ -732,7 +747,26 @@ function parseDelimitedText(text){
   });
 }
 
-function buildRecords(aoa){
+function buildHyperlinkMap(ws){
+  // Excel lets a cell show friendly text (e.g. "Ver foto") while the real URL lives
+  // separately in the cell's hyperlink relationship. sheet_to_json only ever reads the
+  // visible text, so LINK_FOTO_x columns built with real hyperlinks would silently
+  // capture the wrong string. This walks the raw worksheet cells and records the
+  // actual target URL for every cell that has one, keyed by "row_col" (0-based).
+  const map = new Map();
+  if(!ws || typeof XLSX === 'undefined') return map;
+  Object.keys(ws).forEach(addr=>{
+    if(addr[0]==='!') return;
+    const cell = ws[addr];
+    if(cell && cell.l && cell.l.Target){
+      const dec = XLSX.utils.decode_cell(addr);
+      map.set(dec.r+'_'+dec.c, String(cell.l.Target).trim());
+    }
+  });
+  return map;
+}
+
+function buildRecords(aoa, hyperlinks){
   if(!aoa || !aoa.length) return [];
   let headerIdx = -1, colIndexMap = {};
   for(let r=0; r<Math.min(aoa.length, 15); r++){
@@ -763,6 +797,12 @@ function buildRecords(aoa){
     const row = aoa[r];
     if(!row || row.every(c=>c===''||c===null||c===undefined)) continue;
     const get = key => colIndexMap[key]!==undefined ? row[colIndexMap[key]] : '';
+    const getFotoLink = key => {
+      const c = colIndexMap[key];
+      if(c===undefined) return '';
+      const hyperlinkTarget = hyperlinks && hyperlinks.get(r+'_'+c);
+      return hyperlinkTarget || row[c];
+    };
 
     const colaborador = String(get('colaborador')||'').trim();
     const lat = parseCoord(get('latRaw'));
@@ -778,7 +818,7 @@ function buildRecords(aoa){
       ts = new Date(dataLeitura.getTime() + Math.max(0,hora.seconds)*1000);
     }
 
-    const fotos = [get('linkFoto1'),get('linkFoto2'),get('linkFoto3'),get('linkFoto4'),get('linkFoto5')]
+    const fotos = [getFotoLink('linkFoto1'),getFotoLink('linkFoto2'),getFotoLink('linkFoto3'),getFotoLink('linkFoto4'),getFotoLink('linkFoto5')]
       .map(x=>String(x||'').trim()).filter(Boolean);
 
     const temFotoRawStr = String(get('temFotoRaw')||'').trim();
