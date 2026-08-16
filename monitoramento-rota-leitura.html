@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Monitoramento de Rota - Leitura</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --blue-900:#08213f;
+    --blue-800:#0c3564;
+    --blue-700:#0f4a8f;
+    --blue-600:#1361b8;
+    --blue-500:#1c7ce0;
+    --blue-400:#4a9bec;
+    --blue-100:#e6f0fb;
+    --blue-050:#f4f9fe;
+    --white:#ffffff;
+    --gray-900:#1a2433;
+    --gray-700:#4b5a6e;
+    --gray-500:#7d8ba0;
+    --gray-300:#c7d2e0;
+    --gray-200:#e2e8f1;
+    --gray-100:#eef2f8;
+    --ok:#1fa25c;
+    --warn:#e0a11c;
+    --danger:#e0442c;
+    --radius:14px;
+    --radius-sm:9px;
+    --shadow:0 6px 20px rgba(9,37,68,.10);
+    --shadow-sm:0 2px 8px rgba(9,37,68,.08);
+    --sidebar-w:340px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--gray-900);
+    background:var(--blue-050);
+    overflow:hidden;
+  }
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  /* ---------- TOPBAR ---------- */
+  .topbar{
+    background:linear-gradient(135deg,var(--blue-900),var(--blue-700));
+    color:var(--white);
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+    box-shadow:var(--shadow);
+    z-index:1200;
+    position:relative;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-right:6px;}
+  .brand .logo{
+    width:38px;height:38px;border-radius:10px;
+    background:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);font-weight:800;font-size:15px;
+    box-shadow:var(--shadow-sm);
+  }
+  .brand-text h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px;}
+  .brand-text span{font-size:11px;opacity:.8;}
+
+  .filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;flex:1;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.85;font-weight:600;}
+  .field select, .field input{
+    background:rgba(255,255,255,.96);
+    border:1px solid transparent;
+    border-radius:8px;
+    padding:7px 9px;
+    font-size:13px;
+    color:var(--gray-900);
+    min-width:150px;
+    outline:none;
+  }
+  .field select:focus, .field input:focus{border-color:var(--blue-400);}
+  .field.grow input{min-width:200px;}
+
+  .top-actions{display:flex;align-items:flex-end;gap:8px;}
+  .btn{
+    border:none;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+    transition:filter .15s, transform .05s;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--white);color:var(--blue-700);}
+  .btn-primary:hover{filter:brightness(.96);}
+  .btn-ghost{background:rgba(255,255,255,.14);color:var(--white);}
+  .btn-ghost:hover{background:rgba(255,255,255,.22);}
+  .btn-outline{background:transparent;color:var(--blue-700);border:1px solid var(--blue-300,#a9c6ec);}
+  .btn-outline:hover{background:var(--blue-100);}
+  .btn-sm{padding:5px 9px;font-size:11.5px;}
+  .btn-danger{background:#fdeceb;color:var(--danger);}
+  input[type=file]{display:none;}
+
+  .stats-strip{display:flex;gap:16px;margin-left:auto;padding-right:4px;}
+  .stat-chip{
+    background:rgba(255,255,255,.10);
+    border-radius:9px;padding:6px 12px;text-align:center;min-width:82px;
+  }
+  .stat-chip b{display:block;font-size:15px;line-height:1.1;}
+  .stat-chip span{font-size:9.5px;opacity:.8;text-transform:uppercase;letter-spacing:.05em;}
+
+  /* ---------- LAYOUT ---------- */
+  .layout{flex:1;display:flex;min-height:0;position:relative;}
+
+  .sidebar{
+    width:var(--sidebar-w);
+    background:var(--white);
+    border-right:1px solid var(--gray-200);
+    display:flex;flex-direction:column;
+    transition:width .22s ease, min-width .22s ease;
+    overflow:hidden;
+    position:relative;
+    z-index:800;
+  }
+  .sidebar.collapsed{width:0;min-width:0;border-right:none;}
+  .sidebar-inner{width:var(--sidebar-w);height:100%;display:flex;flex-direction:column;}
+
+  .sidebar-head{
+    padding:14px 16px 10px;border-bottom:1px solid var(--gray-100);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .sidebar-head h2{font-size:13.5px;margin:0;color:var(--blue-800);font-weight:700;}
+  .sidebar-head .count-pill{
+    background:var(--blue-100);color:var(--blue-700);font-size:11px;font-weight:700;
+    padding:2px 9px;border-radius:20px;
+  }
+
+  .colab-list{list-style:none;margin:0;padding:8px;overflow-y:auto;flex:1;}
+  .colab-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;
+    cursor:pointer;margin-bottom:3px;transition:background .12s;
+  }
+  .colab-item:hover{background:var(--blue-050);}
+  .colab-item.active{background:var(--blue-100);}
+  .colab-name{font-size:12.6px;font-weight:600;color:var(--gray-900);line-height:1.25;}
+  .colab-sub{font-size:10.8px;color:var(--gray-500);}
+  .empty-hint{padding:26px 18px;color:var(--gray-500);font-size:12.5px;text-align:center;line-height:1.6;}
+
+  .avatar-bubble{
+    width:38px;height:38px;border-radius:50%;background-size:cover;background-position:center;
+    background-color:var(--blue-500);flex:0 0 auto;
+    border:2px solid var(--white);box-shadow:0 0 0 2px var(--blue-200,#bcd8f7);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;
+  }
+  .avatar-bubble.sm{width:30px;height:30px;font-size:10.5px;}
+  .avatar-bubble.lg{width:64px;height:64px;font-size:20px;box-shadow:0 0 0 3px var(--blue-100);}
+
+  /* ---------- DETAIL PANEL ---------- */
+  .detail-panel{display:flex;flex-direction:column;height:100%;overflow-y:auto;}
+  .detail-back{
+    display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gray-100);
+    cursor:pointer;color:var(--blue-700);font-weight:600;font-size:12.5px;
+  }
+  .detail-back:hover{background:var(--blue-050);}
+  .detail-header{padding:16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--gray-100);}
+  .detail-header .nm{font-size:14px;font-weight:700;color:var(--gray-900);line-height:1.3;}
+  .detail-header .rt{font-size:11px;color:var(--gray-500);margin-top:2px;}
+
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px 16px;}
+  .kpi-box{
+    background:var(--blue-050);border:1px solid var(--gray-100);border-radius:10px;padding:9px 10px;
+  }
+  .kpi-box.full{grid-column:1/-1;}
+  .kpi-box .lbl{font-size:9.6px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+  .kpi-box .val{font-size:15px;font-weight:700;color:var(--blue-800);margin-top:2px;}
+  .kpi-box.warn .val{color:var(--warn);}
+  .kpi-box.km .val{color:var(--blue-600);}
+
+  .section-title{
+    padding:12px 16px 4px;font-size:11.5px;font-weight:800;color:var(--blue-800);
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  .bar-group{padding:2px 16px 10px;display:flex;flex-direction:column;gap:7px;}
+  .bar-row .bar-top{display:flex;justify-content:space-between;font-size:11.3px;color:var(--gray-700);margin-bottom:3px;}
+  .bar-row .bar-top b{color:var(--gray-900);font-weight:700;}
+  .bar-track{height:6px;background:var(--gray-100);border-radius:5px;overflow:hidden;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--blue-500),var(--blue-700));border-radius:5px;}
+  .bar-fill.ok{background:linear-gradient(90deg,#3ec27f,var(--ok));}
+  .bar-fill.warn{background:linear-gradient(90deg,#f3c15c,var(--warn));}
+  .no-data-mini{font-size:11px;color:var(--gray-500);padding:2px 0 8px;}
+
+  .fotos-toggle{margin:6px 16px 4px;}
+  .fotos-strip{display:flex;gap:8px;flex-wrap:wrap;padding:8px 16px 16px;}
+  .foto-thumb{
+    width:64px;height:64px;border-radius:8px;object-fit:cover;cursor:pointer;
+    border:1px solid var(--gray-200);background:var(--gray-100);
+  }
+  .foto-thumb-empty{
+    width:64px;height:64px;border-radius:8px;border:1px dashed var(--gray-300);
+    display:flex;align-items:center;justify-content:center;color:var(--gray-500);font-size:9px;text-align:center;
+  }
+
+  /* ---------- MAP ---------- */
+  .map-wrap{flex:1;position:relative;min-width:0;}
+  #map{width:100%;height:100%;background:#dce7f5;}
+
+  .sidebar-toggle{
+    position:absolute;top:14px;left:14px;z-index:900;
+    width:36px;height:36px;border-radius:9px;background:var(--white);border:none;
+    box-shadow:var(--shadow-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);
+  }
+  .sidebar-toggle:hover{background:var(--blue-050);}
+
+  .map-badge{
+    position:absolute;top:14px;left:60px;z-index:900;
+    background:var(--white);padding:9px 16px;border-radius:10px;box-shadow:var(--shadow-sm);
+    display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--gray-700);
+  }
+  .map-badge b{color:var(--blue-700);font-size:14px;}
+  .map-badge.hidden{display:none;}
+
+  .btn-fullscreen{
+    position:absolute;bottom:22px;right:14px;z-index:900;
+    width:38px;height:38px;border-radius:9px;background:var(--white);border:none;
+    box-shadow:var(--shadow-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);
+  }
+  .btn-fullscreen:hover{background:var(--blue-050);}
+
+  .avatar-bubble.marker-wrap{width:44px;height:44px;box-shadow:0 2px 6px rgba(9,37,68,.35),0 0 0 3px var(--white);}
+  .marker-avatar-wrap{filter:drop-shadow(0 3px 4px rgba(0,0,0,.25));}
+  .marker-point .dot{display:block;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+  .leaflet-popup-content{font-size:12.5px;}
+  .leaflet-popup-content b{color:var(--blue-800);}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(8,33,63,.55);z-index:2000;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal-box{
+    background:var(--white);border-radius:var(--radius);width:min(720px,100%);
+    max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3);
+  }
+  .modal-head{
+    padding:16px 20px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;
+  }
+  .modal-head h3{margin:0;font-size:15px;color:var(--blue-800);}
+  .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-500);line-height:1;}
+  .modal-body{padding:16px 20px;overflow-y:auto;}
+  .modal-foot{padding:12px 20px;border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;gap:8px;}
+  .settings-row{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
+  .settings-row label{font-size:12px;font-weight:700;color:var(--gray-700);}
+  .settings-row input{padding:9px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;}
+  .settings-row small{color:var(--gray-500);font-size:11px;}
+
+  .photo-search{width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;margin-bottom:12px;}
+  .photo-map-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100);}
+  .photo-map-row .nm{flex:1;font-size:12.5px;font-weight:600;}
+  .photo-map-row input{flex:1.3;padding:7px 9px;border:1px solid var(--gray-200);border-radius:7px;font-size:12px;}
+
+  .lightbox{position:fixed;inset:0;background:rgba(5,15,28,.9);z-index:3000;display:flex;align-items:center;justify-content:center;}
+  .lightbox.hidden{display:none;}
+  .lightbox img{max-width:88vw;max-height:82vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+  .lightbox-close{position:absolute;top:20px;right:24px;color:#fff;font-size:28px;cursor:pointer;background:none;border:none;}
+  .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.14);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;}
+  .lightbox-nav.prev{left:20px;} .lightbox-nav.next{right:20px;}
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  @media (max-width:900px){
+    :root{--sidebar-w:280px;}
+    .stats-strip{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">MR</div>
+      <div class="brand-text">
+        <h1>Monitoramento de Rota</h1>
+        <span>Leitura de Campo</span>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="field">
+        <label>Data Leitura</label>
+        <select id="fData"><option value="">Todas</option></select>
+      </div>
+      <div class="field">
+        <label>Grupo</label>
+        <select id="fGrupo"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label>Rota (Cadastro)</label>
+        <select id="fRota"><option value="">Todas</option></select>
+      </div>
+      <div class="field grow">
+        <label>Colaborador</label>
+        <input id="fColab" list="colabDatalist" placeholder="Buscar colaborador..." autocomplete="off"/>
+        <datalist id="colabDatalist"></datalist>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-ghost btn-sm" id="btnClearFilters" title="Limpar filtros">Limpar</button>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <label class="btn btn-primary" for="fileInput">⬆ Importar Base</label>
+      <input type="file" id="fileInput" accept=".xls,.xlsx,.txt,.csv"/>
+      <button class="btn btn-ghost" id="btnPhotos">👤 Fotos dos Colaboradores</button>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-chip"><b id="stLeituras">0</b><span>Leituras</span></div>
+      <div class="stat-chip"><b id="stColabs">0</b><span>Colaboradores</span></div>
+      <div class="stat-chip"><b id="stAtualizacao">--:--</b><span>Atualizado</span></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
+        <div id="listView">
+          <div class="sidebar-head">
+            <h2>Colaboradores</h2>
+            <span class="count-pill" id="colabCountPill">0</span>
+          </div>
+          <ul class="colab-list" id="colabList">
+            <li class="empty-hint">Importe uma base (.xlsx, .xls, .csv ou .txt) para visualizar os colaboradores e o mapa.</li>
+          </ul>
+        </div>
+
+        <div id="detailView" style="display:none;height:100%;">
+          <div class="detail-panel">
+            <div class="detail-back" id="btnBackToList">← Voltar para lista</div>
+            <div class="detail-header">
+              <div class="avatar-bubble lg" id="detailAvatar"></div>
+              <div>
+                <div class="nm" id="detailNome">-</div>
+                <div class="rt" id="detailUltima">-</div>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-box"><div class="lbl">Grupo</div><div class="val" id="kpiGrupo">-</div></div>
+              <div class="kpi-box"><div class="lbl">Rota (Cadastro)</div><div class="val" id="kpiRota">-</div></div>
+              <div class="kpi-box"><div class="lbl">Total de Leituras</div><div class="val" id="kpiTotal">-</div></div>
+              <div class="kpi-box warn"><div class="lbl">Falta Visitar</div><div class="val" id="kpiFalta">-</div></div>
+              <div class="kpi-box"><div class="lbl">Data Leitura</div><div class="val" id="kpiData">-</div></div>
+              <div class="kpi-box"><div class="lbl">Última Transmitida</div><div class="val" id="kpiHora">-</div></div>
+              <div class="kpi-box km full"><div class="lbl">Quilômetros Percorridos</div><div class="val" id="kpiKm">-</div></div>
+            </div>
+
+            <div class="section-title">Ocorrências</div>
+            <div class="bar-group" id="grpOcorrencia"></div>
+
+            <div class="section-title">Simultânea</div>
+            <div class="bar-group" id="grpSimultanea"></div>
+
+            <div class="section-title">Motivos</div>
+            <div class="bar-group" id="grpMotivo"></div>
+
+            <div class="section-title">Fotos Tiradas</div>
+            <div class="bar-group" id="grpFotos"></div>
+
+            <div class="fotos-toggle">
+              <button class="btn btn-outline btn-sm" id="btnMostrarFotos">📷 Mostrar Fotos</button>
+            </div>
+            <div class="fotos-strip" id="fotosStrip" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="map-wrap">
+      <button class="sidebar-toggle" id="btnToggleSidebar" title="Expandir/Recolher menu">☰</button>
+      <div class="map-badge hidden" id="mapBadge">Trajeto <b id="mapBadgeKm">0 km</b></div>
+      <div id="map"></div>
+      <button class="btn-fullscreen" id="btnFullscreen" title="Tela cheia">⛶</button>
+    </main>
+  </div>
+</div>
+
+<!-- Photo management modal -->
+<div class="modal-overlay hidden" id="photoModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Fotos dos Colaboradores</h3>
+      <button class="modal-close" id="closePhotoModal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-row">
+        <label>URL Base das Fotos de Leitura (opcional)</label>
+        <input id="photoBaseUrl" placeholder="https://meuservidor.com/fotos/"/>
+        <small>Usada como prefixo quando LINK_FOTO_1..5 da base importada não é um link completo (http/https).</small>
+      </div>
+      <input class="photo-search" id="photoSearch" placeholder="Buscar colaborador..."/>
+      <div id="photoMapList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" id="btnSavePhotos">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox hidden" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">×</button>
+  <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
+  <img id="lightboxImg" src="" alt="Foto"/>
+  <button class="lightbox-nav next" id="lightboxNext">›</button>
+</div>
+
+<script>
+'use strict';
+
+/* ==================== UTILS ==================== */
+
+function normalizeHeader(s){
+  return String(s||'')
+    .toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Z0-9]/g,'');
+}
+
+const HEADER_MAP = {
+  GRUPO:'grupo',
+  ROTACADASTRO:'rota',
+  SEQUENCIALLEITURA:'sequencialRaw',
+  MATRICULA:'matricula',
+  LEITURA:'leitura',
+  OCORRENCIA:'ocorrencia',
+  SIMULTANEA:'simultanea',
+  MOTIVO:'motivo',
+  DATALEITURA:'dataRaw',
+  HORALEITURA:'horaRaw',
+  DSCCOLABORADOR:'colaborador',
+  TIPOLIGACAO:'tipoLigacao',
+  LATITUDE:'latRaw',
+  LONGITUDE:'lonRaw',
+  TEMFOTO:'temFotoRaw',
+  LINKFOTO1:'linkFoto1',
+  LINKFOTO2:'linkFoto2',
+  LINKFOTO3:'linkFoto3',
+  LINKFOTO4:'linkFoto4',
+  LINKFOTO5:'linkFoto5',
+};
+const REQUIRED_ANY = ['DSCCOLABORADOR','SEQUENCIALLEITURA','LATITUDE'];
+
+function pad(n){return String(n).padStart(2,'0');}
+
+function toNumber(v){
+  if(v===''||v===null||v===undefined) return NaN;
+  if(typeof v==='number') return v;
+  const s = String(v).trim().replace(',','.');
+  const n = parseFloat(s);
+  return n;
+}
+
+function parseCoord(raw){
+  if(raw===''||raw===null||raw===undefined) return NaN;
+  if(typeof raw==='number'){
+    let n = raw;
+    if(Math.abs(n) > 180) n = n/1e6;
+    return n;
+  }
+  let s = String(raw).trim();
+  if(!s) return NaN;
+  const dotCount = (s.match(/\./g)||[]).length;
+  const commaCount = (s.match(/,/g)||[]).length;
+  if(dotCount > 1){
+    s = s.replace(/\./g,'');
+  } else if(commaCount >= 1 && dotCount === 0){
+    s = s.replace(',', '.');
+  } else if(commaCount >= 1 && dotCount === 1){
+    // e.g. 1.234,56 style -> remove thousand dot, comma as decimal
+    s = s.replace(/\./g,'').replace(',', '.');
+  }
+  let n = parseFloat(s);
+  if(isNaN(n)) return NaN;
+  if(Math.abs(n) > 180) n = n/1e6;
+  return n;
+}
+
+function excelSerialToUTCDate(serial){
+  const utcDays = Math.floor(serial - 25569);
+  const ms = utcDays * 86400 * 1000;
+  return new Date(ms);
+}
+
+function parseDataLeitura(raw){
+  if(raw===''||raw===null||raw===undefined) return null;
+  if(typeof raw==='number'){
+    if(raw <= 0) return null;
+    const d = excelSerialToUTCDate(Math.floor(raw));
+    return d;
+  }
+  const s = String(raw).trim();
+  if(!s) return null;
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if(m){
+    let [,d,mo,y] = m;
+    if(y.length===2) y = '20'+y;
+    return new Date(Date.UTC(+y, +mo-1, +d));
+  }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){
+    let [,y,mo,d] = m;
+    return new Date(Date.UTC(+y, +mo-1, +d));
+  }
+  if(/^\d+(\.\d+)?$/.test(s)){
+    return excelSerialToUTCDate(Math.floor(parseFloat(s)));
+  }
+  return null;
+}
+
+function secondsToHHMMSS(secs){
+  secs = Math.max(0, Math.round(secs)) % 86400;
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function parseHoraLeitura(raw){
+  if(raw===''||raw===null||raw===undefined) return {str:'', seconds:-1};
+  if(typeof raw==='number'){
+    const secs = Math.round(raw*86400);
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
+  const s = String(raw).trim();
+  let m = s.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?/);
+  if(m){
+    const h=+m[1], mi=+m[2], se=+(m[4]||0);
+    return {str:`${pad(h)}:${pad(mi)}:${pad(se)}`, seconds:h*3600+mi*60+se};
+  }
+  if(/^0?\.\d+$/.test(s)){
+    const secs = Math.round(parseFloat(s)*86400);
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
+  return {str:s, seconds:-1};
+}
+
+function formatDateBR(d){
+  if(!d) return '-';
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`;
+}
+
+function formatKm(km){
+  if(!isFinite(km)) return '0,00';
+  return km.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function formatPct(v){
+  return v.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})+'%';
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function routeDistanceKm(points){
+  let total=0;
+  for(let i=1;i<points.length;i++){
+    total += haversineKm(points[i-1][0],points[i-1][1],points[i][0],points[i][1]);
+  }
+  return total;
+}
+
+const NAME_COLORS = ['#1361b8','#0f4a8f','#2b8aed','#0c3564','#4a9bec','#155a9e'];
+function colorFromName(name){
+  let h=0;
+  for(let i=0;i<name.length;i++) h = (h*31 + name.charCodeAt(i)) >>> 0;
+  return NAME_COLORS[h % NAME_COLORS.length];
+}
+function getInitials(name){
+  const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '?';
+  const relevant = parts.filter(p=>p.length>1);
+  const use = relevant.length>=2 ? [relevant[0],relevant[relevant.length-1]] : parts.slice(0,2);
+  return use.map(p=>p[0]).join('').toUpperCase();
+}
+
+/* ==================== STATE ==================== */
+
+const state = {
+  data: [],
+  filters:{data:'', grupo:'', rota:'', colaborador:''},
+  selected:null,
+  photoMap: loadJSON('mrl_photoMap', {}),
+  photoBaseUrl: localStorage.getItem('mrl_photoBaseUrl') || '',
+  fotosVisible:false,
+  lightboxList:[],
+  lightboxIdx:0,
+};
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+/* ==================== IMPORT / PARSING ==================== */
+
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', handleFile);
+
+async function handleFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  try{
+    let aoa;
+    if(ext==='xlsx' || ext==='xls'){
+      if(typeof XLSX === 'undefined'){
+        alert('Não foi possível carregar o componente de leitura de planilhas (XLSX). Verifique a conexão com a internet e recarregue a página, ou importe o arquivo em formato .csv/.txt.');
+        return;
+      }
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+    } else {
+      const text = await file.text();
+      aoa = parseDelimitedText(text);
+    }
+    const records = buildRecords(aoa);
+    if(!records.length){
+      alert('Não foi possível reconhecer as colunas da base. Verifique se o arquivo possui o cabeçalho esperado (DSC_COLABORADOR, SEQUENCIAL_LEITURA, LATITUDE, LONGITUDE, etc).');
+      return;
+    }
+    state.data = records;
+    state.selected = null;
+    onDataLoaded();
+  }catch(err){
+    console.error(err);
+    alert('Erro ao importar arquivo: '+err.message);
+  }finally{
+    fileInput.value='';
+  }
+}
+
+function parseDelimitedText(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.length>0);
+  if(!lines.length) return [];
+  const sample = lines.slice(0, Math.min(5,lines.length)).join('\n');
+  const counts = { ';': (sample.match(/;/g)||[]).length, ',': (sample.match(/,/g)||[]).length, '\t': (sample.match(/\t/g)||[]).length };
+  const sep = Object.keys(counts).reduce((a,b)=> counts[b]>counts[a] ? b : a, ';');
+  return lines.map(line=>{
+    // basic CSV split with quote support
+    const out=[]; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ inQ=!inQ; continue; }
+      if(ch===sep && !inQ){ out.push(cur); cur=''; continue; }
+      cur+=ch;
+    }
+    out.push(cur);
+    return out.map(v=>v.trim());
+  });
+}
+
+function buildRecords(aoa){
+  if(!aoa || !aoa.length) return [];
+  let headerIdx = -1, colIndexMap = {};
+  for(let r=0; r<Math.min(aoa.length, 15); r++){
+    const row = aoa[r];
+    if(!row) continue;
+    const norm = row.map(normalizeHeader);
+    const hits = REQUIRED_ANY.filter(k=>norm.includes(k));
+    if(hits.length >= 2){
+      headerIdx = r;
+      norm.forEach((n,i)=>{ if(HEADER_MAP[n]) colIndexMap[HEADER_MAP[n]] = i; });
+      break;
+    }
+  }
+  if(headerIdx===-1) return [];
+
+  const records=[];
+  for(let r=headerIdx+1; r<aoa.length; r++){
+    const row = aoa[r];
+    if(!row || row.every(c=>c===''||c===null||c===undefined)) continue;
+    const get = key => colIndexMap[key]!==undefined ? row[colIndexMap[key]] : '';
+
+    const colaborador = String(get('colaborador')||'').trim();
+    const lat = parseCoord(get('latRaw'));
+    const lon = parseCoord(get('lonRaw'));
+    if(!colaborador && (isNaN(lat) || isNaN(lon))) continue;
+
+    const dataLeitura = parseDataLeitura(get('dataRaw'));
+    const hora = parseHoraLeitura(get('horaRaw'));
+    const sequencial = toNumber(get('sequencialRaw'));
+
+    let ts = null;
+    if(dataLeitura){
+      ts = new Date(dataLeitura.getTime() + Math.max(0,hora.seconds)*1000);
+    }
+
+    const fotos = [get('linkFoto1'),get('linkFoto2'),get('linkFoto3'),get('linkFoto4'),get('linkFoto5')]
+      .map(x=>String(x||'').trim()).filter(Boolean);
+
+    records.push({
+      grupo: String(get('grupo')||'').trim(),
+      rota: String(get('rota')||'').trim(),
+      sequencial: isNaN(sequencial) ? null : sequencial,
+      matricula: String(get('matricula')||'').trim(),
+      leitura: String(get('leitura')||'').trim(),
+      ocorrencia: String(get('ocorrencia')||'').trim(),
+      simultanea: String(get('simultanea')||'').trim(),
+      motivo: String(get('motivo')||'').trim(),
+      dataLeitura,
+      dataLeituraStr: formatDateBR(dataLeitura),
+      hora,
+      colaborador,
+      tipoLigacao: String(get('tipoLigacao')||'').trim(),
+      lat, lon,
+      temFoto: /^S/i.test(String(get('temFotoRaw')||'').trim()),
+      fotos,
+      ts,
+    });
+  }
+  return records;
+}
+
+/* ==================== FILTER OPTIONS / PIPELINE ==================== */
+
+function uniqueSorted(arr){
+  return Array.from(new Set(arr.filter(v=>v!==''&&v!==null&&v!==undefined))).sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+}
+
+function applyFilters(records){
+  const f = state.filters;
+  return records.filter(r=>{
+    if(f.data && r.dataLeituraStr !== f.data) return false;
+    if(f.grupo && r.grupo !== f.grupo) return false;
+    if(f.rota && r.rota !== f.rota) return false;
+    if(f.colaborador && r.colaborador !== f.colaborador) return false;
+    return true;
+  });
+}
+
+function refreshFilterOptions(){
+  const base = state.data;
+  const dates = uniqueSorted(base.map(r=>r.dataLeituraStr)).filter(d=>d!=='-'&&d);
+  const dataAffinity = base.filter(r=> !state.filters.grupo || r.grupo===state.filters.grupo);
+  const grupos = uniqueSorted(base.map(r=>r.grupo));
+  const rotaScope = base.filter(r=> !state.filters.grupo || r.grupo===state.filters.grupo);
+  const rotas = uniqueSorted(rotaScope.map(r=>r.rota));
+  const colabs = uniqueSorted(base.map(r=>r.colaborador));
+
+  fillSelect(document.getElementById('fData'), dates, 'Todas', state.filters.data);
+  fillSelect(document.getElementById('fGrupo'), grupos, 'Todos', state.filters.grupo);
+  fillSelect(document.getElementById('fRota'), rotas, 'Todas', state.filters.rota);
+
+  const dl = document.getElementById('colabDatalist');
+  dl.innerHTML = colabs.map(c=>`<option value="${escapeHtml(c)}"></option>`).join('');
+}
+
+function fillSelect(sel, values, placeholder, current){
+  sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.value = values.includes(current) ? current : '';
+}
+
+document.getElementById('fData').addEventListener('change', e=>{ state.filters.data=e.target.value; onFiltersChanged(); });
+document.getElementById('fGrupo').addEventListener('change', e=>{ state.filters.grupo=e.target.value; state.filters.rota=''; onFiltersChanged(); });
+document.getElementById('fRota').addEventListener('change', e=>{ state.filters.rota=e.target.value; onFiltersChanged(); });
+document.getElementById('fColab').addEventListener('change', e=>{
+  const val = e.target.value.trim();
+  const exists = state.data.some(r=>r.colaborador===val);
+  state.filters.colaborador = exists ? val : '';
+  if(exists){ selectColaborador(val); } else { state.selected=null; onFiltersChanged(); }
+});
+document.getElementById('btnClearFilters').addEventListener('click', ()=>{
+  state.filters = {data:'',grupo:'',rota:'',colaborador:''};
+  state.selected = null;
+  document.getElementById('fColab').value='';
+  onFiltersChanged();
+});
+
+function onDataLoaded(){
+  refreshFilterOptions();
+  updateStatsStrip();
+  showListView();
+  renderSidebarList();
+  renderMap();
+}
+
+function onFiltersChanged(){
+  refreshFilterOptions();
+  if(state.selected){
+    showDetailView();
+    renderDetail();
+    renderMap();
+  } else {
+    showListView();
+    renderSidebarList();
+    renderMap();
+  }
+}
+
+function updateStatsStrip(){
+  document.getElementById('stLeituras').textContent = state.data.length.toLocaleString('pt-BR');
+  document.getElementById('stColabs').textContent = uniqueSorted(state.data.map(r=>r.colaborador)).length.toLocaleString('pt-BR');
+  const now = new Date();
+  document.getElementById('stAtualizacao').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+/* ==================== SIDEBAR: LIST VIEW ==================== */
+
+function showListView(){
+  document.getElementById('listView').style.display='block';
+  document.getElementById('detailView').style.display='none';
+}
+function showDetailView(){
+  document.getElementById('listView').style.display='none';
+  document.getElementById('detailView').style.display='block';
+}
+
+function latestPerColaborador(records){
+  const now = new Date();
+  const byName = {};
+  records.forEach(r=>{
+    if(isNaN(r.lat) || isNaN(r.lon)) return;
+    const arr = byName[r.colaborador] || (byName[r.colaborador]=[]);
+    arr.push(r);
+  });
+  const result = [];
+  Object.keys(byName).forEach(name=>{
+    const list = byName[name];
+    const past = list.filter(r=>r.ts && r.ts.getTime() <= now.getTime());
+    const pool = past.length ? past : list;
+    let best = pool[0];
+    pool.forEach(r=>{
+      const bestTs = best.ts ? best.ts.getTime() : (best.sequencial||0);
+      const rTs = r.ts ? r.ts.getTime() : (r.sequencial||0);
+      if(rTs > bestTs) best = r;
+    });
+    result.push(best);
+  });
+  return result.sort((a,b)=>a.colaborador.localeCompare(b.colaborador,'pt-BR'));
+}
+
+function renderSidebarList(){
+  const filtered = applyFilters(state.data);
+  const list = latestPerColaborador(filtered);
+  const ul = document.getElementById('colabList');
+  document.getElementById('colabCountPill').textContent = list.length;
+
+  if(!state.data.length){
+    ul.innerHTML = `<li class="empty-hint">Importe uma base (.xlsx, .xls, .csv ou .txt) para visualizar os colaboradores e o mapa.</li>`;
+    return;
+  }
+  if(!list.length){
+    ul.innerHTML = `<li class="empty-hint">Nenhum colaborador encontrado para os filtros selecionados.</li>`;
+    return;
+  }
+  ul.innerHTML = list.map(r=>{
+    const photo = state.photoMap[r.colaborador];
+    const avatarInner = photo
+      ? `style="background-image:url('${escapeHtml(photo)}')"`
+      : `style="background-color:${colorFromName(r.colaborador)}"`;
+    const initials = photo ? '' : getInitials(r.colaborador);
+    const timeLbl = r.ts ? `${r.dataLeituraStr} · ${r.hora.str||'-'}` : 'sem horário';
+    return `<li class="colab-item" data-name="${escapeHtml(r.colaborador)}">
+      <div class="avatar-bubble" ${avatarInner}>${initials}</div>
+      <div>
+        <div class="colab-name">${escapeHtml(r.colaborador)}</div>
+        <div class="colab-sub">Rota ${escapeHtml(r.rota||'-')} · ${escapeHtml(timeLbl)}</div>
+      </div>
+    </li>`;
+  }).join('');
+
+  ul.querySelectorAll('.colab-item').forEach(li=>{
+    li.addEventListener('click', ()=> selectColaborador(li.dataset.name));
+  });
+}
+
+function selectColaborador(name){
+  state.selected = name;
+  state.filters.colaborador = name;
+  document.getElementById('fColab').value = name;
+  state.fotosVisible = false;
+  showDetailView();
+  renderDetail();
+  renderMap();
+}
+
+document.getElementById('btnBackToList').addEventListener('click', ()=>{
+  state.selected = null;
+  state.filters.colaborador = '';
+  document.getElementById('fColab').value = '';
+  showListView();
+  renderSidebarList();
+  renderMap();
+});
+
+/* ==================== DETAIL PANEL ==================== */
+
+function recordsForSelected(){
+  if(!state.selected) return [];
+  const own = state.data.filter(r=>r.colaborador===state.selected);
+  // determine the colaborador's rota: prefer active rota filter, else most frequent rota among their records
+  let rota = state.filters.rota;
+  if(!rota){
+    const counts = {};
+    own.forEach(r=>{ if(r.rota) counts[r.rota]=(counts[r.rota]||0)+1; });
+    rota = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || '';
+  }
+  return own.filter(r=>{
+    if(rota && r.rota !== rota) return false;
+    if(state.filters.grupo && r.grupo !== state.filters.grupo) return false;
+    if(state.filters.data && r.dataLeituraStr !== state.filters.data) return false;
+    return true;
+  });
+}
+
+function groupCount(records, field, matcher){
+  const rows = records.filter(r=> matcher ? matcher(r[field]) : String(r[field]||'').trim()!=='');
+  const counts = {};
+  rows.forEach(r=>{ const k=String(r[field]).trim(); counts[k]=(counts[k]||0)+1; });
+  const total = rows.length;
+  return Object.keys(counts)
+    .map(k=>({label:k, count:counts[k], pct: total ? counts[k]/total*100 : 0}))
+    .sort((a,b)=>b.count-a.count);
+}
+
+function renderBarGroup(containerId, items, cls){
+  const el = document.getElementById(containerId);
+  if(!items.length){ el.innerHTML = `<div class="no-data-mini">Sem dados para o período/rota selecionados.</div>`; return; }
+  el.innerHTML = items.map(it=>`
+    <div class="bar-row">
+      <div class="bar-top"><span>${escapeHtml(it.label)}</span><b>${it.count} - ${formatPct(it.pct)}</b></div>
+      <div class="bar-track"><div class="bar-fill ${cls||''}" style="width:${it.pct}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function renderDetail(){
+  const recs = recordsForSelected();
+  const name = state.selected;
+  const photo = state.photoMap[name];
+
+  document.getElementById('detailAvatar').style.backgroundImage = photo ? `url('${photo}')` : '';
+  document.getElementById('detailAvatar').style.backgroundColor = photo ? '' : colorFromName(name||'');
+  document.getElementById('detailAvatar').textContent = photo ? '' : getInitials(name||'');
+  document.getElementById('detailNome').textContent = name || '-';
+
+  if(!recs.length){
+    document.getElementById('detailUltima').textContent = 'Sem leituras para os filtros atuais';
+    ['kpiGrupo','kpiRota','kpiTotal','kpiFalta','kpiData','kpiHora','kpiKm'].forEach(id=>document.getElementById(id).textContent='-');
+    ['grpOcorrencia','grpSimultanea','grpMotivo','grpFotos'].forEach(id=>renderBarGroup(id, []));
+    document.getElementById('fotosStrip').innerHTML='';
+    return;
+  }
+
+  const grupo = recs[0].grupo;
+  const rota = recs[0].rota;
+  const totalLeituras = uniqueSorted(recs.map(r=> r.sequencial!==null ? r.sequencial : r.matricula)).length;
+  const faltaVisitar = recs.filter(r=>/^99\b/.test(r.simultanea.trim()) || /sendo entregue/i.test(r.simultanea)).length;
+
+  let latest = recs[0];
+  recs.forEach(r=>{
+    const a = latest.ts ? latest.ts.getTime() : -1;
+    const b = r.ts ? r.ts.getTime() : -1;
+    if(b > a) latest = r;
+  });
+
+  document.getElementById('kpiGrupo').textContent = grupo || '-';
+  document.getElementById('kpiRota').textContent = rota || '-';
+  document.getElementById('kpiTotal').textContent = totalLeituras;
+  document.getElementById('kpiFalta').textContent = faltaVisitar;
+  document.getElementById('kpiData').textContent = latest.dataLeituraStr || '-';
+  document.getElementById('kpiHora').textContent = latest.hora.str || '-';
+  document.getElementById('detailUltima').textContent = `Última leitura: ${latest.dataLeituraStr||'-'} às ${latest.hora.str||'-'}`;
+
+  const ordered = orderedRoutePoints(recs);
+  const km = routeDistanceKm(ordered.map(r=>[r.lat,r.lon]));
+  document.getElementById('kpiKm').textContent = `${formatKm(km)} km`;
+
+  renderBarGroup('grpOcorrencia', groupCount(recs,'ocorrencia'));
+  renderBarGroup('grpSimultanea', groupCount(recs,'simultanea'));
+  renderBarGroup('grpMotivo', groupCount(recs,'motivo'));
+  renderBarGroup('grpFotos', groupCount(recs,'temFoto', v=>true).map(it=>({...it, label: it.label==='true'?'SIM':'NÃO'})), 'ok');
+
+  renderFotosStrip(recs);
+}
+
+function resolveFotoUrl(link){
+  if(!link) return '';
+  if(/^https?:\/\//i.test(link) || /^data:/i.test(link)) return link;
+  const base = state.photoBaseUrl;
+  return base ? (base.replace(/\/?$/, '/') + link) : link;
+}
+
+function renderFotosStrip(recs){
+  const strip = document.getElementById('fotosStrip');
+  strip.style.display = state.fotosVisible ? 'flex' : 'none';
+  if(!state.fotosVisible) return;
+  const links = [];
+  recs.forEach(r=> r.fotos.forEach(f=> links.push(resolveFotoUrl(f))));
+  state.lightboxList = links;
+  if(!links.length){
+    strip.innerHTML = `<div class="no-data-mini">Nenhuma foto de leitura registrada para este colaborador nos filtros atuais.</div>`;
+    return;
+  }
+  strip.innerHTML = links.map((url,i)=>`<img class="foto-thumb" src="${escapeHtml(url)}" data-idx="${i}" onerror="this.outerHTML='<div class=&quot;foto-thumb-empty&quot;>Foto indisponível</div>'"/>`).join('');
+  strip.querySelectorAll('.foto-thumb').forEach(img=>{
+    img.addEventListener('click', ()=> openLightbox(parseInt(img.dataset.idx,10)));
+  });
+}
+
+document.getElementById('btnMostrarFotos').addEventListener('click', ()=>{
+  state.fotosVisible = !state.fotosVisible;
+  document.getElementById('btnMostrarFotos').textContent = state.fotosVisible ? '📷 Ocultar Fotos' : '📷 Mostrar Fotos';
+  renderFotosStrip(recordsForSelected());
+});
+
+/* ==================== ROUTE ORDERING ==================== */
+
+function orderedRoutePoints(recs){
+  const valid = recs.filter(r=>!isNaN(r.lat) && !isNaN(r.lon));
+  return valid.slice().sort((a,b)=>{
+    if(a.sequencial!==null && b.sequencial!==null && a.sequencial!==b.sequencial) return a.sequencial-b.sequencial;
+    const at = a.ts?a.ts.getTime():0, bt = b.ts?b.ts.getTime():0;
+    return at-bt;
+  });
+}
+
+/* ==================== MAP ==================== */
+
+let map=null, markersLayer=null, routeLayer=null, mapAvailable=false;
+
+function initMap(){
+  if(typeof L === 'undefined'){
+    document.getElementById('map').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:30px;text-align:center;color:var(--gray-500);font-size:13px;line-height:1.6;">
+      Mapa indisponível: não foi possível carregar o OpenStreetMap/Leaflet.<br/>Verifique a conexão com a internet e recarregue a página.<br/>Os filtros, KPIs e a importação continuam funcionando normalmente.
+    </div>`;
+    return;
+  }
+  try{
+    map = L.map('map', {zoomControl:true}).setView([-22.9068,-43.1729], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    markersLayer = L.layerGroup().addTo(map);
+    routeLayer = L.layerGroup().addTo(map);
+    mapAvailable = true;
+  }catch(err){
+    console.error('Falha ao iniciar o mapa', err);
+  }
+}
+initMap();
+
+function avatarDivIcon(name, size, extraClass){
+  const photo = state.photoMap[name];
+  const style = photo ? `background-image:url('${photo}')` : `background-color:${colorFromName(name)}`;
+  const initials = photo ? '' : getInitials(name);
+  return L.divIcon({
+    className:'marker-avatar-wrap '+(extraClass||''),
+    html:`<div class="avatar-bubble marker-wrap" style="${style};width:${size}px;height:${size}px;font-size:${Math.round(size*0.32)}px;">${initials}</div>`,
+    iconSize:[size,size],
+    iconAnchor:[size/2, size/2],
+    popupAnchor:[0, -size/2],
+  });
+}
+
+function pointDivIcon(color){
+  return L.divIcon({
+    className:'marker-point',
+    html:`<span class="dot" style="background:${color}"></span>`,
+    iconSize:[16,16],
+    iconAnchor:[8,8],
+  });
+}
+
+function renderMap(){
+  const badge = document.getElementById('mapBadge');
+  if(mapAvailable){ markersLayer.clearLayers(); routeLayer.clearLayers(); }
+
+  if(state.selected){
+    const recs = recordsForSelected();
+    const ordered = orderedRoutePoints(recs);
+    if(!ordered.length){
+      badge.classList.add('hidden');
+      return;
+    }
+    const coords = ordered.map(r=>[r.lat,r.lon]);
+    const km = routeDistanceKm(coords);
+    document.getElementById('mapBadgeKm').textContent = `${formatKm(km)} km`;
+    badge.classList.remove('hidden');
+
+    if(!mapAvailable) return;
+
+    L.polyline(coords, {color:'#1c7ce0', weight:4, opacity:0.85}).addTo(routeLayer);
+
+    const first = ordered[0], last = ordered[ordered.length-1];
+    L.marker([first.lat,first.lon], {icon:pointDivIcon('#1fa25c')})
+      .bindPopup(`<b>${escapeHtml(first.colaborador)}</b><br/>Início · Seq. ${first.sequencial ?? '-'}<br/>${first.dataLeituraStr} ${first.hora.str}`)
+      .addTo(routeLayer);
+    L.marker([last.lat,last.lon], {icon:avatarDivIcon(last.colaborador, 42)})
+      .bindPopup(`<b>${escapeHtml(last.colaborador)}</b><br/>Ponto atual · Seq. ${last.sequencial ?? '-'}<br/>${last.dataLeituraStr} ${last.hora.str}`)
+      .addTo(routeLayer);
+
+    if(coords.length>1){
+      map.fitBounds(L.latLngBounds(coords), {padding:[60,60]});
+    } else {
+      map.setView(coords[0], 15);
+    }
+  } else {
+    badge.classList.add('hidden');
+    if(!mapAvailable) return;
+    const filtered = applyFilters(state.data);
+    const list = latestPerColaborador(filtered);
+    if(!list.length) return;
+    const bounds = [];
+    list.forEach(r=>{
+      const icon = avatarDivIcon(r.colaborador, 40);
+      const m = L.marker([r.lat,r.lon], {icon})
+        .bindPopup(`<b>${escapeHtml(r.colaborador)}</b><br/>Rota ${escapeHtml(r.rota||'-')} · Grupo ${escapeHtml(r.grupo||'-')}<br/>${r.dataLeituraStr} ${r.hora.str}`)
+        .on('click', ()=> selectColaborador(r.colaborador));
+      m.addTo(markersLayer);
+      bounds.push([r.lat,r.lon]);
+    });
+    if(bounds.length){
+      map.fitBounds(L.latLngBounds(bounds), {padding:[60,60], maxZoom:15});
+    }
+  }
+}
+
+/* ==================== SIDEBAR TOGGLE / FULLSCREEN ==================== */
+
+document.getElementById('btnToggleSidebar').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  if(mapAvailable) setTimeout(()=> map.invalidateSize(), 240);
+});
+
+document.getElementById('btnFullscreen').addEventListener('click', ()=>{
+  const wrap = document.querySelector('.map-wrap');
+  if(!document.fullscreenElement){
+    wrap.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+});
+document.addEventListener('fullscreenchange', ()=>{ if(mapAvailable) setTimeout(()=>map.invalidateSize(), 150); });
+
+/* ==================== PHOTO MODAL ==================== */
+
+const photoModal = document.getElementById('photoModal');
+document.getElementById('btnPhotos').addEventListener('click', ()=>{
+  document.getElementById('photoBaseUrl').value = state.photoBaseUrl;
+  renderPhotoModalList('');
+  photoModal.classList.remove('hidden');
+});
+document.getElementById('closePhotoModal').addEventListener('click', ()=> photoModal.classList.add('hidden'));
+photoModal.addEventListener('click', e=>{ if(e.target===photoModal) photoModal.classList.add('hidden'); });
+
+document.getElementById('photoSearch').addEventListener('input', e=> renderPhotoModalList(e.target.value.trim()));
+
+function renderPhotoModalList(filterText){
+  const names = uniqueSorted(state.data.map(r=>r.colaborador));
+  const filtered = filterText ? names.filter(n=>n.toLowerCase().includes(filterText.toLowerCase())) : names;
+  const container = document.getElementById('photoMapList');
+  if(!filtered.length){
+    container.innerHTML = `<div class="no-data-mini">Importe uma base para listar os colaboradores, ou ajuste a busca.</div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(n=>`
+    <div class="photo-map-row">
+      <div class="nm">${escapeHtml(n)}</div>
+      <input type="text" data-name="${escapeHtml(n)}" placeholder="https://.../foto.jpg" value="${escapeHtml(state.photoMap[n]||'')}"/>
+    </div>
+  `).join('');
+}
+
+document.getElementById('btnSavePhotos').addEventListener('click', ()=>{
+  document.querySelectorAll('#photoMapList input').forEach(inp=>{
+    const name = inp.dataset.name;
+    const val = inp.value.trim();
+    if(val) state.photoMap[name] = val; else delete state.photoMap[name];
+  });
+  state.photoBaseUrl = document.getElementById('photoBaseUrl').value.trim();
+  saveJSON('mrl_photoMap', state.photoMap);
+  localStorage.setItem('mrl_photoBaseUrl', state.photoBaseUrl);
+  photoModal.classList.add('hidden');
+  renderSidebarList();
+  if(state.selected) renderDetail();
+  renderMap();
+});
+
+/* ==================== LIGHTBOX ==================== */
+
+function openLightbox(idx){
+  state.lightboxIdx = idx;
+  document.getElementById('lightboxImg').src = state.lightboxList[idx];
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.add('hidden'); }
+function navLightbox(delta){
+  const n = state.lightboxList.length;
+  state.lightboxIdx = (state.lightboxIdx + delta + n) % n;
+  document.getElementById('lightboxImg').src = state.lightboxList[state.lightboxIdx];
+}
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+document.getElementById('lightboxPrev').addEventListener('click', ()=>navLightbox(-1));
+document.getElementById('lightboxNext').addEventListener('click', ()=>navLightbox(1));
+document.getElementById('lightbox').addEventListener('click', e=>{ if(e.target.id==='lightbox') closeLightbox(); });
+
+/* ==================== INIT ==================== */
+
+updateStatsStrip();
+setInterval(updateStatsStrip, 60000);
+
+</script>
+</body>
+</html>
