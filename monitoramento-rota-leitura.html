@@ -259,6 +259,39 @@
   }
   .btn-fullscreen:hover{background:var(--blue-050);}
 
+  .map-export-btn{
+    position:absolute;top:14px;right:14px;z-index:900;
+    background:rgba(255,255,255,.95);box-shadow:var(--shadow-sm);
+  }
+  .map-export-btn.hidden{display:none;}
+
+  .overview-legend{
+    position:absolute;top:60px;left:14px;z-index:850;
+    width:250px;max-width:calc(100% - 28px);
+    max-height:calc(100% - 80px);overflow-y:auto;
+    background:rgba(255,255,255,.90);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border-radius:var(--radius);box-shadow:0 10px 30px rgba(9,37,68,.18);
+    padding:14px 16px;font-size:12px;
+  }
+  .overview-legend.hidden{display:none;}
+  .ov-head{margin-bottom:6px;}
+  .ov-head h3{margin:0 0 2px;font-size:12.5px;color:var(--blue-800);font-weight:800;text-transform:uppercase;letter-spacing:.04em;}
+  .ov-grupo{font-size:11px;color:var(--gray-700);}
+  .ov-grupo b{color:var(--blue-700);}
+  .ov-section{padding:8px 0;border-top:1px solid var(--gray-200);}
+  .ov-section:first-of-type{border-top:none;padding-top:0;}
+  .ov-subtitle{font-size:10.3px;font-weight:800;color:var(--blue-700);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+  .ov-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2.5px 0;font-size:11.3px;color:var(--gray-700);}
+  .ov-row span{white-space:nowrap;}
+  .ov-row b{color:var(--gray-900);font-weight:700;text-align:right;}
+  .ov-row.highlight{background:var(--blue-050);border-radius:7px;padding:5px 7px;margin-top:3px;}
+  .ov-row.highlight b{color:var(--blue-700);font-size:13.5px;}
+  .ov-legend-item{display:flex;align-items:center;gap:7px;font-size:10.6px;color:var(--gray-700);padding:2.5px 0;}
+  .ov-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;}
+  .ov-dot.start{background:var(--ok);}
+  .ov-dot.current{background:var(--blue-600);}
+  .ov-line{width:18px;height:3px;border-radius:2px;flex:0 0 auto;background:linear-gradient(90deg,#0c3564,#fb8c00,#2e7d32,#8e24aa,#f9a825);}
+
   .avatar-bubble.marker-wrap{width:44px;height:44px;box-shadow:0 2px 6px rgba(9,37,68,.35),0 0 0 3px var(--white);}
   .marker-avatar-wrap{filter:drop-shadow(0 3px 4px rgba(0,0,0,.25));}
   .marker-point .dot{display:block;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
@@ -433,6 +466,39 @@
     <main class="map-wrap">
       <button class="sidebar-toggle" id="btnToggleSidebar" title="Expandir/Recolher menu">☰</button>
       <div class="map-badge hidden" id="mapBadge">Trajeto <b id="mapBadgeKm">0 km</b></div>
+      <button class="btn btn-outline btn-sm map-export-btn hidden" id="btnExportMapPdf">📄 Exportar PDF</button>
+
+      <div class="overview-legend hidden" id="overviewLegend">
+        <div class="ov-head">
+          <h3>Informações Gerais</h3>
+          <div class="ov-grupo">Grupo: <b id="ovGrupo">-</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-row"><span>Total de Leituras</span><b id="ovTotalLeituras">0</b></div>
+          <div class="ov-row"><span>Total Lidas</span><b id="ovTotalLidas">0</b></div>
+          <div class="ov-row"><span>Faltam Visitar</span><b id="ovFaltamVisitar">0</b></div>
+          <div class="ov-row"><span>Total Ocorrências</span><b id="ovTotalOcorrencias">0</b></div>
+          <div class="ov-row highlight"><span>% Conclusão</span><b id="ovConclusao">0%</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Faturas</div>
+          <div class="ov-row"><span>Entregues</span><b id="ovFaturasEntregues">0</b></div>
+          <div class="ov-row"><span>Não Entregues</span><b id="ovFaturasNaoEntregues">0</b></div>
+          <div class="ov-row"><span>Retidas</span><b id="ovFaturasRetidas">0</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Outros Detalhes</div>
+          <div class="ov-row"><span>Colaboradores</span><b id="ovColaboradores">0</b></div>
+          <div class="ov-row"><span>Qtd. Rotas</span><b id="ovRotas">0</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Legenda</div>
+          <div class="ov-legend-item"><span class="ov-dot start"></span> Ponto Inicial (Seq. 1)</div>
+          <div class="ov-legend-item"><span class="ov-dot current"></span> Último ponto do colaborador</div>
+          <div class="ov-legend-item"><span class="ov-line"></span> Rota (cor exclusiva por colaborador)</div>
+        </div>
+      </div>
+
       <div id="map"></div>
       <button class="btn-fullscreen" id="btnFullscreen" title="Tela cheia">⛶</button>
     </main>
@@ -637,6 +703,32 @@ function formatPct(v){
 
 function escapeHtml(s){
   return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function normalizeText(s){
+  return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+
+function isFaltaVisitarRow(r){
+  const s = (r.simultanea||'').trim();
+  return /^99\b/.test(s) || /sendo entregue/i.test(s);
+}
+
+// Ordered so consecutive indices alternate warm/cool and light/dark, keeping
+// colors assigned to adjacent routes as visually distinct as possible.
+const ROUTE_COLORS = [
+  '#0c3564', // Azul escuro
+  '#fb8c00', // Laranja
+  '#2e7d32', // Verde escuro
+  '#8e24aa', // Roxo
+  '#f9a825', // Amarelo
+  '#29b6f6', // Azul claro
+  '#e53935', // Vermelho
+  '#00acc1', // Turquesa
+  '#66bb6a', // Verde claro
+];
+function routeColorForIndex(i){
+  return ROUTE_COLORS[i % ROUTE_COLORS.length];
 }
 
 function haversineKm(lat1,lon1,lat2,lon2){
@@ -912,6 +1004,7 @@ function onDataLoaded(){
   showListView();
   renderSidebarList();
   renderMap();
+  renderOverviewLegend();
 }
 
 function onFiltersChanged(){
@@ -925,6 +1018,7 @@ function onFiltersChanged(){
     renderSidebarList();
     renderMap();
   }
+  renderOverviewLegend();
 }
 
 function updateStatsStrip(){
@@ -946,27 +1040,34 @@ function showDetailView(){
 }
 
 function latestPerColaborador(records){
+  const byName = groupByColaborador(records);
+  return uniqueSorted(Object.keys(byName))
+    .map(name=>pickLatestValidPoint(byName[name]))
+    .filter(Boolean);
+}
+
+function pickLatestValidPoint(records){
   const now = new Date();
+  const valid = records.filter(r=>isValidCoord(r.lat, r.lon));
+  if(!valid.length) return null;
+  const past = valid.filter(r=>r.ts && r.ts.getTime() <= now.getTime());
+  const pool = past.length ? past : valid;
+  let best = pool[0];
+  pool.forEach(r=>{
+    const bestTs = best.ts ? best.ts.getTime() : (best.sequencial||0);
+    const rTs = r.ts ? r.ts.getTime() : (r.sequencial||0);
+    if(rTs > bestTs) best = r;
+  });
+  return best;
+}
+
+function groupByColaborador(records){
   const byName = {};
   records.forEach(r=>{
-    if(!isValidCoord(r.lat, r.lon)) return;
     const arr = byName[r.colaborador] || (byName[r.colaborador]=[]);
     arr.push(r);
   });
-  const result = [];
-  Object.keys(byName).forEach(name=>{
-    const list = byName[name];
-    const past = list.filter(r=>r.ts && r.ts.getTime() <= now.getTime());
-    const pool = past.length ? past : list;
-    let best = pool[0];
-    pool.forEach(r=>{
-      const bestTs = best.ts ? best.ts.getTime() : (best.sequencial||0);
-      const rTs = r.ts ? r.ts.getTime() : (r.sequencial||0);
-      if(rTs > bestTs) best = r;
-    });
-    result.push(best);
-  });
-  return result.sort((a,b)=>a.colaborador.localeCompare(b.colaborador,'pt-BR'));
+  return byName;
 }
 
 function renderSidebarList(){
@@ -1014,6 +1115,7 @@ function selectColaborador(name){
   showDetailView();
   renderDetail();
   renderMap();
+  renderOverviewLegend();
 }
 
 document.getElementById('btnBackToList').addEventListener('click', ()=>{
@@ -1023,6 +1125,7 @@ document.getElementById('btnBackToList').addEventListener('click', ()=>{
   showListView();
   renderSidebarList();
   renderMap();
+  renderOverviewLegend();
 });
 
 /* ==================== DETAIL PANEL ==================== */
@@ -1102,7 +1205,7 @@ function renderDetail(){
   const grupo = recs[0].grupo;
   const rota = recs[0].rota;
   const totalLeituras = uniqueSorted(recs.map(r=> r.sequencial!==null ? r.sequencial : r.matricula)).length;
-  const faltaVisitar = recs.filter(r=>/^99\b/.test(r.simultanea.trim()) || /sendo entregue/i.test(r.simultanea)).length;
+  const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
 
   let latest = recs[0];
   recs.forEach(r=>{
@@ -1236,13 +1339,14 @@ function initMap(){
 }
 initMap();
 
-function avatarDivIcon(name, size, extraClass){
+function avatarDivIcon(name, size, extraClass, ringColor){
   const photo = state.photoMap[name];
   const style = photo ? `background-image:url('${photo}')` : `background-color:${colorFromName(name)}`;
   const initials = photo ? '' : getInitials(name);
+  const ringStyle = ringColor ? `box-shadow:0 2px 6px rgba(9,37,68,.35),0 0 0 3px ${ringColor};` : '';
   return L.divIcon({
     className:'marker-avatar-wrap '+(extraClass||''),
-    html:`<div class="avatar-bubble marker-wrap" style="${style};width:${size}px;height:${size}px;font-size:${Math.round(size*0.32)}px;">${initials}</div>`,
+    html:`<div class="avatar-bubble marker-wrap" style="${style};width:${size}px;height:${size}px;font-size:${Math.round(size*0.32)}px;${ringStyle}">${initials}</div>`,
     iconSize:[size,size],
     iconAnchor:[size/2, size/2],
     popupAnchor:[0, -size/2],
@@ -1307,21 +1411,83 @@ function renderMap(){
     badge.classList.add('hidden');
     if(!mapAvailable) return;
     const filtered = applyFilters(state.data);
-    const list = latestPerColaborador(filtered);
-    if(!list.length) return;
+    const byColab = groupByColaborador(filtered);
+    const names = uniqueSorted(Object.keys(byColab));
     const bounds = [];
-    list.forEach(r=>{
-      const icon = avatarDivIcon(r.colaborador, 40);
-      const m = L.marker([r.lat,r.lon], {icon})
-        .bindPopup(`<b>${escapeHtml(r.colaborador)}</b><br/>Rota ${escapeHtml(r.rota||'-')} · Grupo ${escapeHtml(r.grupo||'-')}<br/>${r.dataLeituraStr} ${r.hora.str}`)
-        .on('click', ()=> selectColaborador(r.colaborador));
-      m.addTo(markersLayer);
-      bounds.push([r.lat,r.lon]);
+    names.forEach((name, idx)=>{
+      const recs = byColab[name];
+      const color = routeColorForIndex(idx);
+      const ordered = orderedRoutePoints(recs);
+
+      if(ordered.length >= 2){
+        L.polyline(ordered.map(r=>[r.lat,r.lon]), {color, weight:3, opacity:0.75}).addTo(routeLayer);
+      }
+      if(ordered.length >= 1){
+        const start = ordered.find(r=>r.sequencial===1) || ordered[0];
+        L.marker([start.lat,start.lon], {icon:pointDivIcon(color)})
+          .bindPopup(`<b>${escapeHtml(name)}</b><br/>Início da rota · Seq. ${start.sequencial ?? '-'}<br/>${start.dataLeituraStr} ${start.hora.str}`)
+          .addTo(routeLayer);
+        ordered.forEach(r=>bounds.push([r.lat,r.lon]));
+      }
+
+      const last = pickLatestValidPoint(recs);
+      if(last){
+        L.marker([last.lat,last.lon], {icon:avatarDivIcon(name, 40, '', color)})
+          .bindPopup(`<b>${escapeHtml(name)}</b><br/>Rota ${escapeHtml(last.rota||'-')} · Grupo ${escapeHtml(last.grupo||'-')}<br/>${last.dataLeituraStr} ${last.hora.str}`)
+          .on('click', ()=> selectColaborador(name))
+          .addTo(markersLayer);
+        bounds.push([last.lat,last.lon]);
+      }
     });
     if(bounds.length){
       map.fitBounds(L.latLngBounds(bounds), {padding:[60,60], maxZoom:15});
     }
   }
+}
+
+function renderOverviewLegend(){
+  const panel = document.getElementById('overviewLegend');
+  const exportBtn = document.getElementById('btnExportMapPdf');
+  if(state.selected || !state.data.length){
+    panel.classList.add('hidden');
+    exportBtn.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  exportBtn.classList.remove('hidden');
+
+  const filtered = applyFilters(state.data);
+  const totalLeituras = filtered.filter(r=>r.matricula).length;
+  const pct = n => totalLeituras ? n/totalLeituras*100 : 0;
+
+  const totalLidas = filtered.filter(r=> !r.ocorrencia && normalizeText(r.simultanea)!=='99-SENDO ENTREGUE').length;
+  const faltamVisitar = filtered.filter(isFaltaVisitarRow).length;
+  const totalOcorrencias = filtered.filter(r=> r.ocorrencia).length;
+  const pctConclusao = pct(totalLidas + totalOcorrencias);
+
+  const totalNaoEntregues = filtered.filter(r=> normalizeText(r.simultanea).includes('00-7NAO ENTREGUE')).length;
+  const totalRetidas = filtered.filter(r=> normalizeText(r.simultanea).includes('RETIDA')).length;
+  const totalEntregues = filtered.filter(r=>{
+    const n = normalizeText(r.simultanea);
+    return !n.includes('00-7NAO ENTREGUE') && !n.includes('RETIDA');
+  }).length;
+
+  const colaboradoresCount = uniqueSorted(filtered.map(r=>r.colaborador)).length;
+  const rotasCount = uniqueSorted(filtered.map(r=>r.rota)).length;
+  const gruposPresentes = uniqueSorted(filtered.map(r=>r.grupo));
+  const grupoLabel = state.filters.grupo || (gruposPresentes.length===1 ? gruposPresentes[0] : 'Todos');
+
+  document.getElementById('ovGrupo').textContent = grupoLabel || '-';
+  document.getElementById('ovTotalLeituras').textContent = totalLeituras.toLocaleString('pt-BR');
+  document.getElementById('ovTotalLidas').textContent = `${totalLidas.toLocaleString('pt-BR')} (${formatPct(pct(totalLidas))})`;
+  document.getElementById('ovFaltamVisitar').textContent = `${faltamVisitar.toLocaleString('pt-BR')} (${formatPct(pct(faltamVisitar))})`;
+  document.getElementById('ovTotalOcorrencias').textContent = `${totalOcorrencias.toLocaleString('pt-BR')} (${formatPct(pct(totalOcorrencias))})`;
+  document.getElementById('ovConclusao').textContent = formatPct(pctConclusao);
+  document.getElementById('ovFaturasEntregues').textContent = totalEntregues.toLocaleString('pt-BR');
+  document.getElementById('ovFaturasNaoEntregues').textContent = totalNaoEntregues.toLocaleString('pt-BR');
+  document.getElementById('ovFaturasRetidas').textContent = totalRetidas.toLocaleString('pt-BR');
+  document.getElementById('ovColaboradores').textContent = colaboradoresCount.toLocaleString('pt-BR');
+  document.getElementById('ovRotas').textContent = rotasCount.toLocaleString('pt-BR');
 }
 
 /* ==================== SIDEBAR TOGGLE / FULLSCREEN ==================== */
@@ -1439,7 +1605,7 @@ async function exportPdf(){
       if(b > a) latest = r;
     });
     const totalLeituras = uniqueSorted(recs.map(r=> r.sequencial!==null ? r.sequencial : r.matricula)).length;
-    const faltaVisitar = recs.filter(r=>/^99\b/.test((r.simultanea||'').trim()) || /sendo entregue/i.test(r.simultanea||'')).length;
+    const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
 
     let mapImgData = null;
     if(mapAvailable && ordered.length){
@@ -1534,6 +1700,137 @@ async function exportPdf(){
     doc.text(genStr, marginX, pageH-8);
 
     const fname = `Rota_${String(state.selected).replace(/[^a-z0-9]+/gi,'_')}_${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear()}.pdf`;
+    doc.save(fname);
+  }catch(err){
+    console.error(err);
+    alert('Erro ao gerar o PDF: '+err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+/* ==================== EXPORT GENERAL MAP PDF ==================== */
+
+document.getElementById('btnExportMapPdf').addEventListener('click', exportGeneralMapPdf);
+
+async function exportGeneralMapPdf(){
+  if(!state.data.length){
+    alert('Importe uma base antes de exportar o mapa.');
+    return;
+  }
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    alert('Não foi possível carregar os componentes de exportação em PDF. Verifique a conexão com a internet e recarregue a página.');
+    return;
+  }
+
+  const btn = document.getElementById('btnExportMapPdf');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Gerando PDF...';
+
+  try{
+    const filtered = applyFilters(state.data);
+    const byColab = groupByColaborador(filtered);
+    const names = uniqueSorted(Object.keys(byColab));
+
+    let mapImgData = null;
+    if(mapAvailable){
+      try{
+        const canvas = await html2canvas(document.querySelector('.map-wrap'), {
+          useCORS:true, allowTaint:false, logging:false,
+          ignoreElements: el => el.id==='btnExportMapPdf' || el.id==='btnToggleSidebar' || el.id==='btnFullscreen',
+        });
+        mapImgData = canvas.toDataURL('image/png');
+      }catch(err){
+        console.error('Falha ao capturar o mapa para o PDF', err);
+      }
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm', format:'a4', orientation:'landscape'});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 12;
+    let y = 22;
+
+    doc.setFillColor(15,74,143);
+    doc.rect(0,0,pageW,16,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(13);
+    doc.setFont(undefined,'bold');
+    doc.text('Monitoramento de Rota - Mapa Geral', marginX, 10.5);
+
+    if(mapImgData){
+      const imgProps = doc.getImageProperties(mapImgData);
+      const maxW = pageW - marginX*2;
+      const maxH = pageH - y - 12;
+      let drawW = maxW, drawH = drawW * imgProps.height / imgProps.width;
+      if(drawH > maxH){
+        drawH = maxH;
+        drawW = drawH * imgProps.width / imgProps.height;
+      }
+      const drawX = marginX + (maxW-drawW)/2;
+      doc.addImage(mapImgData, 'PNG', drawX, y, drawW, drawH);
+    } else {
+      doc.setFontSize(9.5); doc.setTextColor(150,150,150);
+      doc.text('Mapa nao disponivel para captura neste relatorio.', marginX, y);
+    }
+
+    // Colaboradores summary table (own page(s), map image may be dense already)
+    doc.addPage();
+    let py = 16;
+    doc.setTextColor(20,30,40); doc.setFontSize(13); doc.setFont(undefined,'bold');
+    doc.text('Informacoes dos Colaboradores', marginX, py);
+    py += 8;
+
+    const colX = [marginX, marginX+78, marginX+103, marginX+128, marginX+156, marginX+184, marginX+216];
+    const headers = ['Colaborador','Grupo','Rota','Leituras','Falta Visitar','Km Percorridos','Ultima Transmitida'];
+    const drawTableHeader = ()=>{
+      doc.setFont(undefined,'bold'); doc.setFontSize(8.5); doc.setTextColor(90,100,115);
+      headers.forEach((h,i)=>doc.text(h, colX[i], py));
+      py += 4.5;
+      doc.setDrawColor(220,226,235);
+      doc.line(marginX, py-3.2, pageW-marginX, py-3.2);
+      doc.setFont(undefined,'normal'); doc.setTextColor(20,30,40);
+    };
+    drawTableHeader();
+
+    names.forEach(name=>{
+      const recs = byColab[name];
+      const ordered = orderedRoutePoints(recs);
+      const km = routeDistanceKm(ordered.map(r=>[r.lat,r.lon]));
+      const falta = recs.filter(isFaltaVisitarRow).length;
+      let latest = recs[0];
+      recs.forEach(r=>{
+        const a = latest.ts ? latest.ts.getTime() : -1;
+        const b = r.ts ? r.ts.getTime() : -1;
+        if(b > a) latest = r;
+      });
+      if(py > pageH - 14){
+        doc.addPage();
+        py = 16;
+        drawTableHeader();
+      }
+      const row = [
+        String(name).slice(0,42),
+        recs[0].grupo || '-',
+        recs[0].rota || '-',
+        String(recs.length),
+        String(falta),
+        `${formatKm(km)} km`,
+        `${latest.dataLeituraStr||'-'} ${latest.hora.str||''}`.trim(),
+      ];
+      row.forEach((v,i)=> doc.text(String(v), colX[i], py));
+      py += 4.6;
+    });
+
+    const now = new Date();
+    const genStr = `Relatorio gerado em ${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} as ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text(genStr, marginX, pageH-6);
+
+    const fname = `Mapa_Rotas_Geral_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}.pdf`;
     doc.save(fname);
   }catch(err){
     console.error(err);
