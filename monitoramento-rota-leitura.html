@@ -50,6 +50,19 @@
   }
   #app{display:flex;flex-direction:column;height:100vh;}
 
+  .app-footer{
+    flex:0 0 auto;
+    background:var(--blue-900);
+    color:rgba(255,255,255,.72);
+    font-size:10.5px;
+    padding:5px 16px;
+    text-align:center;
+    letter-spacing:.02em;
+  }
+  .app-footer b{color:#fff;font-weight:600;}
+  .app-footer a{color:rgba(255,255,255,.88);text-decoration:none;}
+  .app-footer a:hover{text-decoration:underline;}
+
   /* ---------- TOPBAR ---------- */
   .topbar{
     background:linear-gradient(135deg,var(--blue-900),var(--blue-700));
@@ -503,6 +516,10 @@
       <button class="btn-fullscreen" id="btnFullscreen" title="Tela cheia">⛶</button>
     </main>
   </div>
+
+  <footer class="app-footer">
+    Criado por: <b>Igor Lopo</b> · Contato: <a href="tel:+5521995900497">(21) 99590-0497</a>
+  </footer>
 </div>
 
 <!-- Photo management modal -->
@@ -1132,16 +1149,13 @@ document.getElementById('btnBackToList').addEventListener('click', ()=>{
 
 function recordsForSelected(){
   if(!state.selected) return [];
-  const own = state.data.filter(r=>r.colaborador===state.selected);
-  // determine the colaborador's rota: prefer active rota filter, else most frequent rota among their records
-  let rota = state.filters.rota;
-  if(!rota){
-    const counts = {};
-    own.forEach(r=>{ if(r.rota) counts[r.rota]=(counts[r.rota]||0)+1; });
-    rota = Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || '';
-  }
-  return own.filter(r=>{
-    if(rota && r.rota !== rota) return false;
+  // Only the filters actually active in the top bar apply here - no implicit
+  // "most common rota" guessing, which previously could silently exclude the
+  // colaborador's current rota (and its FALTA VISITAR rows) whenever their
+  // history spanned more than one rota.
+  return state.data.filter(r=>{
+    if(r.colaborador !== state.selected) return false;
+    if(state.filters.rota && r.rota !== state.filters.rota) return false;
     if(state.filters.grupo && r.grupo !== state.filters.grupo) return false;
     if(state.filters.data && r.dataLeituraStr !== state.filters.data) return false;
     return true;
@@ -1202,9 +1216,7 @@ function renderDetail(){
     return;
   }
 
-  const grupo = recs[0].grupo;
-  const rota = recs[0].rota;
-  const totalLeituras = uniqueSorted(recs.map(r=> r.sequencial!==null ? r.sequencial : r.matricula)).length;
+  const totalLeituras = recs.length;
   const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
 
   let latest = recs[0];
@@ -1214,8 +1226,8 @@ function renderDetail(){
     if(b > a) latest = r;
   });
 
-  document.getElementById('kpiGrupo').textContent = grupo || '-';
-  document.getElementById('kpiRota').textContent = rota || '-';
+  document.getElementById('kpiGrupo').textContent = latest.grupo || '-';
+  document.getElementById('kpiRota').textContent = latest.rota || '-';
   document.getElementById('kpiTotal').textContent = totalLeituras;
   document.getElementById('kpiFalta').textContent = faltaVisitar;
   document.getElementById('kpiData').textContent = latest.dataLeituraStr || '-';
@@ -1604,7 +1616,7 @@ async function exportPdf(){
       const b = r.ts ? r.ts.getTime() : -1;
       if(b > a) latest = r;
     });
-    const totalLeituras = uniqueSorted(recs.map(r=> r.sequencial!==null ? r.sequencial : r.matricula)).length;
+    const totalLeituras = recs.length;
     const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
 
     let mapImgData = null;
@@ -1642,7 +1654,7 @@ async function exportPdf(){
     y += 7;
 
     const infoRows = [
-      ['Grupo', recs[0].grupo || '-', 'Rota (Cadastro)', recs[0].rota || '-'],
+      ['Grupo', latest.grupo || '-', 'Rota (Cadastro)', latest.rota || '-'],
       ['Data Leitura (filtro)', state.filters.data || latest.dataLeituraStr || '-', 'Ultima Transmitida', latest.hora.str || '-'],
       ['Total de Leituras', String(totalLeituras), 'Falta Visitar', String(faltaVisitar)],
       ['Quilometros Percorridos', `${formatKm(km)} km`, 'Horas Trabalhadas', horas || '-'],
