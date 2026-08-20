@@ -737,6 +737,20 @@ function isFaltaVisitarRow(r){
   return /^99\b/.test(s) || /sendo entregue/i.test(s);
 }
 
+// FALTA VISITAR is counted against the ROTA (CADASTRO) linked to the colaborador
+// (their most recent record's rota), not against the colaborador identity directly -
+// so it also picks up "99-SENDO ENTREGUE" rows on that rota logged under a
+// different DSC_COLABORADOR (e.g. a substitute on the same route).
+function faltaVisitarByRota(rota){
+  if(!rota) return 0;
+  return state.data.filter(r=>{
+    if(r.rota !== rota) return false;
+    if(state.filters.grupo && r.grupo !== state.filters.grupo) return false;
+    if(state.filters.data && r.dataLeituraStr !== state.filters.data) return false;
+    return isFaltaVisitarRow(r);
+  }).length;
+}
+
 // Ordered so consecutive indices alternate warm/cool and light/dark, keeping
 // colors assigned to adjacent routes as visually distinct as possible.
 const ROUTE_COLORS = [
@@ -1223,7 +1237,6 @@ function renderDetail(){
   }
 
   const totalLeituras = recs.length;
-  const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
 
   let latest = recs[0];
   recs.forEach(r=>{
@@ -1231,6 +1244,8 @@ function renderDetail(){
     const b = r.ts ? r.ts.getTime() : -1;
     if(b > a) latest = r;
   });
+
+  const faltaVisitar = faltaVisitarByRota(latest.rota);
 
   document.getElementById('kpiGrupo').textContent = latest.grupo || '-';
   document.getElementById('kpiRota').textContent = latest.rota || '-';
@@ -1240,8 +1255,7 @@ function renderDetail(){
   document.getElementById('kpiHora').textContent = latest.hora.str || '-';
   document.getElementById('detailUltima').textContent = `Última leitura: ${latest.dataLeituraStr||'-'} às ${latest.hora.str||'-'}`;
 
-  const ordered = orderedRoutePoints(recs);
-  const km = routeDistanceKm(ordered.map(r=>[r.lat,r.lon]));
+  const km = segmentedRouteKm(orderedRouteSegments(recs));
   document.getElementById('kpiKm').textContent = `${formatKm(km)} km`;
   const horas = computeHorasTrabalhadas(sortBySequenceThenTime(recs));
   document.getElementById('kpiHorasTrabalhadas').textContent = horas || '-';
@@ -1330,6 +1344,33 @@ function orderedRoutePoints(recs){
   return sortBySequenceThenTime(recs.filter(r=>isValidCoord(r.lat, r.lon)));
 }
 
+// A colaborador can execute more than one ROTA (CADASTRO) in the same day; treating
+// all of it as a single ordered path crosses/joins unrelated routes and inflates the
+// distance with the jump between them. This splits the valid points into one segment
+// per rota (each internally ordered as before), so each route gets its own polyline
+// and its own starting point, ordered chronologically by when each rota was worked.
+function orderedRouteSegments(recs){
+  const valid = recs.filter(r=>isValidCoord(r.lat, r.lon));
+  const byRota = {};
+  const rotaOrder = [];
+  valid.forEach(r=>{
+    const key = r.rota || '';
+    if(!byRota[key]){ byRota[key] = []; rotaOrder.push(key); }
+    byRota[key].push(r);
+  });
+  const segments = rotaOrder.map(key => sortBySequenceThenTime(byRota[key]));
+  segments.sort((a,b)=>{
+    const at = a[0].ts ? a[0].ts.getTime() : 0;
+    const bt = b[0].ts ? b[0].ts.getTime() : 0;
+    return at-bt;
+  });
+  return segments;
+}
+
+function segmentedRouteKm(segments){
+  return segments.reduce((sum, seg) => sum + routeDistanceKm(seg.map(r=>[r.lat,r.lon])), 0);
+}
+
 /* ==================== MAP ==================== */
 
 let map=null, markersLayer=null, routeLayer=null, mapAvailable=false;
@@ -1400,30 +1441,37 @@ function renderMap(){
       badge.classList.add('hidden');
       return;
     }
-    const coords = ordered.map(r=>[r.lat,r.lon]);
-    const km = routeDistanceKm(coords);
+    const segments = orderedRouteSegments(recs);
+    const km = segmentedRouteKm(segments);
     document.getElementById('mapBadgeKm').textContent = `${formatKm(km)} km`;
     badge.classList.remove('hidden');
 
     if(!mapAvailable) return;
 
-    L.polyline(coords, {color:'#1c7ce0', weight:4, opacity:0.85}).addTo(routeLayer);
-
-    const last = ordered[ordered.length-1];
-    const start = ordered.find(r=>r.sequencial===1) || ordered[0];
-    L.marker([start.lat,start.lon], {icon:startDivIcon()})
-      .bindPopup(`<b>${escapeHtml(start.colaborador)}</b><br/>Ponto Inicial · Seq. ${start.sequencial ?? '-'}<br/>${start.dataLeituraStr} ${start.hora.str}`)
-      .addTo(routeLayer);
-    if(last !== start){
+    const last = ordered[ordered.length-1]; // último ponto registrado - lógica inalterada
+    const allCoords = [];
+    const segmentStarts = segments.map(seg => seg.find(r=>r.sequencial===1) || seg[0]);
+    segments.forEach((seg, i)=>{
+      const segCoords = seg.map(r=>[r.lat,r.lon]);
+      allCoords.push(...segCoords);
+      if(segCoords.length>1){
+        L.polyline(segCoords, {color:'#1c7ce0', weight:4, opacity:0.85}).addTo(routeLayer);
+      }
+      const start = segmentStarts[i];
+      L.marker([start.lat,start.lon], {icon:startDivIcon()})
+        .bindPopup(`<b>${escapeHtml(start.colaborador)}</b><br/>Ponto Inicial · Rota ${escapeHtml(start.rota||'-')} · Seq. ${start.sequencial ?? '-'}<br/>${start.dataLeituraStr} ${start.hora.str}`)
+        .addTo(routeLayer);
+    });
+    if(!segmentStarts.includes(last)){
       L.marker([last.lat,last.lon], {icon:avatarDivIcon(last.colaborador, 42)})
         .bindPopup(`<b>${escapeHtml(last.colaborador)}</b><br/>Ponto atual · Seq. ${last.sequencial ?? '-'}<br/>${last.dataLeituraStr} ${last.hora.str}`)
         .addTo(routeLayer);
     }
 
-    if(coords.length>1){
-      map.fitBounds(L.latLngBounds(coords), {padding:[60,60]});
+    if(allCoords.length>1){
+      map.fitBounds(L.latLngBounds(allCoords), {padding:[60,60]});
     } else {
-      map.setView(coords[0], 15);
+      map.setView(allCoords[0], 15);
     }
   } else {
     badge.classList.add('hidden');
@@ -1487,7 +1535,7 @@ function renderOverviewLegend(){
   const totalRetidas = filtered.filter(r=> normalizeText(r.simultanea).includes('RETIDA')).length;
   const totalEntregues = filtered.filter(r=>{
     const n = normalizeText(r.simultanea);
-    return !n.includes('00-7NAO ENTREGUE') && !n.includes('RETIDA');
+    return n !== '00-7NAO ENTREGUE' && !n.includes('RETIDA');
   }).length;
 
   const colaboradoresCount = uniqueSorted(filtered.map(r=>r.colaborador)).length;
@@ -1613,7 +1661,7 @@ async function exportPdf(){
 
   try{
     const ordered = orderedRoutePoints(recs);
-    const km = routeDistanceKm(ordered.map(r=>[r.lat,r.lon]));
+    const km = segmentedRouteKm(orderedRouteSegments(recs));
     const horas = computeHorasTrabalhadas(sortBySequenceThenTime(recs));
 
     let latest = recs[0];
@@ -1623,7 +1671,7 @@ async function exportPdf(){
       if(b > a) latest = r;
     });
     const totalLeituras = recs.length;
-    const faltaVisitar = recs.filter(isFaltaVisitarRow).length;
+    const faltaVisitar = faltaVisitarByRota(latest.rota);
 
     let mapImgData = null;
     if(mapAvailable && ordered.length){
