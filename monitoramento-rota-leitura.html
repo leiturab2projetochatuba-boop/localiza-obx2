@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Monitoramento de Rota - Leitura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --blue-900:#08213f;
+    --blue-800:#0c3564;
+    --blue-700:#0f4a8f;
+    --blue-600:#1361b8;
+    --blue-500:#1c7ce0;
+    --blue-400:#4a9bec;
+    --blue-100:#e6f0fb;
+    --blue-050:#f4f9fe;
+    --white:#ffffff;
+    --gray-900:#1a2433;
+    --gray-700:#4b5a6e;
+    --gray-500:#7d8ba0;
+    --gray-300:#c7d2e0;
+    --gray-200:#e2e8f1;
+    --gray-100:#eef2f8;
+    --ok:#1fa25c;
+    --warn:#e0a11c;
+    --danger:#e0442c;
+    --radius:14px;
+    --radius-sm:9px;
+    --shadow:0 6px 20px rgba(9,37,68,.10);
+    --shadow-sm:0 2px 8px rgba(9,37,68,.08);
+    --sidebar-w:340px;
+  }
+  *{box-sizing:border-box;}
+  input, select, button, textarea{font-family:inherit;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:'Poppins','Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color:var(--gray-900);
+    background:var(--blue-050);
+    overflow:hidden;
+  }
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  .app-footer{
+    flex:0 0 auto;
+    background:var(--blue-900);
+    color:rgba(255,255,255,.72);
+    font-size:10.5px;
+    padding:5px 16px;
+    text-align:center;
+    letter-spacing:.02em;
+  }
+  .app-footer b{color:#fff;font-weight:600;}
+  .app-footer a{color:rgba(255,255,255,.88);text-decoration:none;}
+  .app-footer a:hover{text-decoration:underline;}
+
+  /* ---------- TOPBAR ---------- */
+  .topbar{
+    background:linear-gradient(135deg,var(--blue-900),var(--blue-700));
+    color:var(--white);
+    padding:10px 18px;
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+    box-shadow:var(--shadow);
+    z-index:1200;
+    position:relative;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-right:6px;flex:0 0 auto;}
+  .brand .logo{
+    width:40px;height:40px;min-width:40px;border-radius:10px;
+    background:var(--white);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);font-weight:800;font-size:15px;
+    box-shadow:var(--shadow-sm);
+    padding:4px;
+    overflow:hidden;
+  }
+  .brand .logo img{width:100%;height:100%;object-fit:contain;border-radius:6px;display:block;}
+  .brand-text h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px;white-space:nowrap;}
+  .brand-text span{font-size:11px;opacity:.8;}
+  @media (max-width:560px){
+    .brand-text{display:none;}
+  }
+
+  .filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;flex:1;}
+  .field{display:flex;flex-direction:column;gap:3px;}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;opacity:.85;font-weight:600;}
+  .field select, .field input{
+    background:rgba(255,255,255,.96);
+    border:1px solid transparent;
+    border-radius:8px;
+    padding:7px 9px;
+    font-size:13px;
+    color:var(--gray-900);
+    min-width:150px;
+    outline:none;
+  }
+  .field select:focus, .field input:focus{border-color:var(--blue-400);}
+  .field.grow input{min-width:200px;}
+
+  .top-actions{display:flex;align-items:flex-end;gap:8px;}
+  .btn{
+    border:none;border-radius:8px;padding:8px 13px;font-size:12.5px;font-weight:600;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+    transition:filter .15s, transform .05s;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:var(--white);color:var(--blue-700);}
+  .btn-primary:hover{filter:brightness(.96);}
+  .btn-ghost{background:rgba(255,255,255,.14);color:var(--white);}
+  .btn-ghost:hover{background:rgba(255,255,255,.22);}
+  .btn-outline{background:transparent;color:var(--blue-700);border:1px solid var(--blue-300,#a9c6ec);}
+  .btn-outline:hover{background:var(--blue-100);}
+  .btn-sm{padding:5px 9px;font-size:11.5px;}
+  .btn-danger{background:#fdeceb;color:var(--danger);}
+  input[type=file]{display:none;}
+
+  .stats-strip{display:flex;gap:16px;margin-left:auto;padding-right:4px;}
+  .stat-chip{
+    background:rgba(255,255,255,.10);
+    border-radius:9px;padding:6px 12px;text-align:center;min-width:82px;
+  }
+  .stat-chip b{display:block;font-size:15px;line-height:1.1;}
+  .stat-chip span{font-size:9.5px;opacity:.8;text-transform:uppercase;letter-spacing:.05em;}
+
+  /* ---------- LAYOUT ---------- */
+  .layout{flex:1;display:flex;min-height:0;position:relative;}
+
+  .sidebar{
+    width:var(--sidebar-w);
+    background:var(--white);
+    border-right:1px solid var(--gray-200);
+    display:flex;flex-direction:column;
+    transition:width .22s ease, min-width .22s ease;
+    overflow:hidden;
+    position:relative;
+    z-index:800;
+  }
+  .sidebar.collapsed{width:0;min-width:0;border-right:none;}
+  .sidebar-inner{width:var(--sidebar-w);height:100%;position:relative;}
+  #listView, #detailView{
+    position:absolute;inset:0;display:flex;flex-direction:column;height:100%;min-height:0;
+  }
+
+  .sidebar-head{
+    padding:14px 16px 10px;border-bottom:1px solid var(--gray-100);
+    display:flex;align-items:center;justify-content:space-between;
+    flex:0 0 auto;
+  }
+  .sidebar-head h2{font-size:13.5px;margin:0;color:var(--blue-800);font-weight:700;}
+  .sidebar-head .count-pill{
+    background:var(--blue-100);color:var(--blue-700);font-size:11px;font-weight:700;
+    padding:2px 9px;border-radius:20px;
+  }
+
+  .colab-list{list-style:none;margin:0;padding:8px;overflow-y:auto;flex:1 1 auto;min-height:0;}
+  .colab-item{
+    display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;
+    cursor:pointer;margin-bottom:3px;transition:background .12s;
+  }
+  .colab-item:hover{background:var(--blue-050);}
+  .colab-item.active{background:var(--blue-100);}
+  .colab-name{font-size:12.6px;font-weight:600;color:var(--gray-900);line-height:1.25;}
+  .colab-sub{font-size:10.8px;color:var(--gray-500);}
+  .empty-hint{padding:26px 18px;color:var(--gray-500);font-size:12.5px;text-align:center;line-height:1.6;}
+
+  .avatar-bubble{
+    width:38px;height:38px;border-radius:50%;background-size:cover;background-position:center;
+    background-color:var(--blue-500);flex:0 0 auto;
+    border:2px solid var(--white);box-shadow:0 0 0 2px var(--blue-200,#bcd8f7);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px;
+  }
+  .avatar-bubble.sm{width:30px;height:30px;font-size:10.5px;}
+  .avatar-bubble.lg{width:64px;height:64px;font-size:20px;box-shadow:0 0 0 3px var(--blue-100);}
+
+  /* ---------- DETAIL PANEL ---------- */
+  .detail-panel{display:flex;flex-direction:column;height:100%;min-height:0;overflow-y:auto;flex:1 1 auto;}
+  .detail-back{
+    display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gray-100);
+    cursor:pointer;color:var(--blue-700);font-weight:600;font-size:12.5px;
+  }
+  .detail-back:hover{background:var(--blue-050);}
+  .detail-header{padding:16px;display:flex;gap:12px;align-items:center;border-bottom:1px solid var(--gray-100);}
+  .detail-header .nm{font-size:14px;font-weight:700;color:var(--gray-900);line-height:1.3;}
+  .detail-header .rt{font-size:11px;color:var(--gray-500);margin-top:2px;}
+
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px 16px;}
+  .kpi-box{
+    background:var(--blue-050);border:1px solid var(--gray-100);border-radius:10px;padding:9px 10px;
+  }
+  .kpi-box.full{grid-column:1/-1;}
+  .kpi-box .lbl{font-size:9.6px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em;font-weight:700;}
+  .kpi-box .val{font-size:15px;font-weight:700;color:var(--blue-800);margin-top:2px;}
+  .kpi-box.warn .val{color:var(--warn);}
+  .kpi-box.km .val{color:var(--blue-600);}
+
+  .section-title{
+    padding:12px 16px 4px;font-size:11.5px;font-weight:800;color:var(--blue-800);
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+  .bar-group{padding:2px 16px 10px;display:flex;flex-direction:column;gap:7px;}
+  .bar-row .bar-top{display:flex;justify-content:space-between;font-size:11.3px;color:var(--gray-700);margin-bottom:3px;}
+  .bar-row .bar-top b{color:var(--gray-900);font-weight:700;}
+  .bar-track{height:6px;background:var(--gray-100);border-radius:5px;overflow:hidden;}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--blue-500),var(--blue-700));border-radius:5px;}
+  .bar-fill.ok{background:linear-gradient(90deg,#3ec27f,var(--ok));}
+  .bar-fill.warn{background:linear-gradient(90deg,#f3c15c,var(--warn));}
+  .no-data-mini{font-size:11px;color:var(--gray-500);padding:2px 0 8px;}
+
+  .fotos-toggle{margin:6px 16px 4px;display:flex;gap:8px;flex-wrap:wrap;}
+  .fotos-strip{padding:8px 16px 16px;}
+  .foto-carousel{display:flex;flex-direction:column;gap:8px;}
+  .foto-main{
+    position:relative;width:100%;height:150px;border-radius:10px;overflow:hidden;
+    background:var(--gray-100);border:1px solid var(--gray-200);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .foto-main .fc-image{width:100%;height:100%;object-fit:cover;cursor:zoom-in;}
+  .foto-main .fc-empty{color:var(--gray-500);font-size:11px;text-align:center;padding:10px;}
+  .fc-nav{
+    position:absolute;top:50%;transform:translateY(-50%);background:rgba(8,33,63,.55);border:none;color:#fff;
+    width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;
+  }
+  .fc-nav:hover{background:rgba(8,33,63,.8);}
+  .fc-nav.prev{left:8px;} .fc-nav.next{right:8px;}
+  .fc-counter{
+    position:absolute;bottom:6px;right:8px;background:rgba(8,33,63,.6);color:#fff;font-size:10px;
+    padding:2px 7px;border-radius:20px;
+  }
+  .foto-thumbs{display:flex;gap:6px;flex-wrap:wrap;}
+  .foto-thumb{
+    width:44px;height:44px;border-radius:7px;object-fit:cover;cursor:pointer;
+    border:2px solid transparent;background:var(--gray-100);opacity:.7;
+  }
+  .foto-thumb:hover{opacity:1;}
+  .foto-thumb.active{border-color:var(--blue-500);opacity:1;}
+  .foto-thumb-empty{
+    width:44px;height:44px;border-radius:7px;border:1px dashed var(--gray-300);
+    display:flex;align-items:center;justify-content:center;color:var(--gray-500);font-size:8px;text-align:center;
+  }
+
+  /* ---------- MAP ---------- */
+  .map-wrap{flex:1;position:relative;min-width:0;}
+  #map{width:100%;height:100%;background:#dce7f5;}
+
+  .sidebar-toggle{
+    position:absolute;top:14px;left:14px;z-index:900;
+    width:36px;height:36px;border-radius:9px;background:var(--white);border:none;
+    box-shadow:var(--shadow-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);
+  }
+  .sidebar-toggle:hover{background:var(--blue-050);}
+
+  .map-badge{
+    position:absolute;top:14px;left:60px;z-index:900;
+    background:var(--white);padding:9px 16px;border-radius:10px;box-shadow:var(--shadow-sm);
+    display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--gray-700);
+  }
+  .map-badge b{color:var(--blue-700);font-size:14px;}
+  .map-badge.hidden{display:none;}
+
+  .btn-fullscreen{
+    position:absolute;bottom:22px;right:14px;z-index:900;
+    width:38px;height:38px;border-radius:9px;background:var(--white);border:none;
+    box-shadow:var(--shadow-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--blue-700);
+  }
+  .btn-fullscreen:hover{background:var(--blue-050);}
+
+  .map-export-btn{
+    position:absolute;top:14px;right:14px;z-index:900;
+    background:rgba(255,255,255,.95);box-shadow:var(--shadow-sm);
+  }
+  .map-export-btn.hidden{display:none;}
+
+  .overview-legend{
+    position:absolute;top:60px;left:14px;z-index:850;
+    width:250px;max-width:calc(100% - 28px);
+    max-height:calc(100% - 80px);overflow-y:auto;
+    background:rgba(255,255,255,.90);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border-radius:var(--radius);box-shadow:0 10px 30px rgba(9,37,68,.18);
+    padding:14px 16px;font-size:12px;
+  }
+  .overview-legend.hidden{display:none;}
+  .ov-head{margin-bottom:6px;}
+  .ov-head h3{margin:0 0 2px;font-size:12.5px;color:var(--blue-800);font-weight:800;text-transform:uppercase;letter-spacing:.04em;}
+  .ov-grupo{font-size:11px;color:var(--gray-700);}
+  .ov-grupo b{color:var(--blue-700);}
+  .ov-section{padding:8px 0;border-top:1px solid var(--gray-200);}
+  .ov-section:first-of-type{border-top:none;padding-top:0;}
+  .ov-subtitle{font-size:10.3px;font-weight:800;color:var(--blue-700);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+  .ov-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:2.5px 0;font-size:11.3px;color:var(--gray-700);}
+  .ov-row span{white-space:nowrap;}
+  .ov-row b{color:var(--gray-900);font-weight:700;text-align:right;}
+  .ov-row.highlight{background:var(--blue-050);border-radius:7px;padding:5px 7px;margin-top:3px;}
+  .ov-row.highlight b{color:var(--blue-700);font-size:13.5px;}
+  .ov-legend-item{display:flex;align-items:center;gap:7px;font-size:10.6px;color:var(--gray-700);padding:2.5px 0;}
+  .ov-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;}
+  .ov-dot.start{background:var(--ok);}
+  .ov-dot.current{background:var(--blue-600);}
+  .ov-line{width:18px;height:3px;border-radius:2px;flex:0 0 auto;background:linear-gradient(90deg,#0c3564,#fb8c00,#2e7d32,#8e24aa,#f9a825);}
+
+  .avatar-bubble.marker-wrap{width:44px;height:44px;box-shadow:0 2px 6px rgba(9,37,68,.35),0 0 0 3px var(--white);}
+  .marker-avatar-wrap{filter:drop-shadow(0 3px 4px rgba(0,0,0,.25));}
+  .marker-point .dot{display:block;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+  .leaflet-popup-content{font-size:12.5px;}
+  .leaflet-popup-content b{color:var(--blue-800);}
+
+  @keyframes mrlPulse{
+    0%{transform:scale(.55);opacity:.75;}
+    75%{transform:scale(2.3);opacity:0;}
+    100%{transform:scale(2.3);opacity:0;}
+  }
+  .marker-start-wrap{position:relative;width:34px;height:34px;}
+  .marker-start-wrap .pulse{
+    position:absolute;inset:0;margin:auto;width:22px;height:22px;border-radius:50%;
+    background:var(--ok);animation:mrlPulse 1.8s ease-out infinite;
+  }
+  .marker-start-wrap .core{
+    position:absolute;inset:0;margin:auto;width:22px;height:22px;border-radius:50%;
+    background:var(--ok);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;
+  }
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(8,33,63,.55);z-index:2000;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal-box{
+    background:var(--white);border-radius:var(--radius);width:min(720px,100%);
+    max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.3);
+  }
+  .modal-head{
+    padding:16px 20px;border-bottom:1px solid var(--gray-100);display:flex;align-items:center;justify-content:space-between;
+  }
+  .modal-head h3{margin:0;font-size:15px;color:var(--blue-800);}
+  .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-500);line-height:1;}
+  .modal-body{padding:16px 20px;overflow-y:auto;}
+  .modal-foot{padding:12px 20px;border-top:1px solid var(--gray-100);display:flex;justify-content:flex-end;gap:8px;}
+  .settings-row{display:flex;flex-direction:column;gap:5px;margin-bottom:16px;}
+  .settings-row label{font-size:12px;font-weight:700;color:var(--gray-700);}
+  .settings-row input{padding:9px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;}
+  .settings-row small{color:var(--gray-500);font-size:11px;}
+
+  .photo-search{width:100%;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px;margin-bottom:12px;}
+  .photo-map-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100);}
+  .photo-map-row .nm{flex:1;font-size:12.5px;font-weight:600;}
+  .photo-map-row input{flex:1.3;padding:7px 9px;border:1px solid var(--gray-200);border-radius:7px;font-size:12px;}
+
+  .lightbox{position:fixed;inset:0;background:rgba(5,15,28,.9);z-index:3000;display:flex;align-items:center;justify-content:center;}
+  .lightbox.hidden{display:none;}
+  .lightbox img{max-width:88vw;max-height:82vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+  .lightbox-close{position:absolute;top:20px;right:24px;color:#fff;font-size:28px;cursor:pointer;background:none;border:none;}
+  .lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.14);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;}
+  .lightbox-nav.prev{left:20px;} .lightbox-nav.next{right:20px;}
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--gray-300);border-radius:8px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  @media (max-width:900px){
+    :root{--sidebar-w:280px;}
+    .stats-strip{display:none;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"><img src="data:image/png;base64,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" alt="Águas do Rio" /></div>
+      <div class="brand-text">
+        <h1>Monitoramento de Rota</h1>
+        <span>Leitura de Campo</span>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="field">
+        <label>Data Leitura</label>
+        <select id="fData"><option value="">Todas</option></select>
+      </div>
+      <div class="field">
+        <label>Grupo</label>
+        <select id="fGrupo"><option value="">Todos</option></select>
+      </div>
+      <div class="field">
+        <label>Rota (Cadastro)</label>
+        <select id="fRota"><option value="">Todas</option></select>
+      </div>
+      <div class="field grow">
+        <label>Colaborador</label>
+        <input id="fColab" list="colabDatalist" placeholder="Buscar colaborador..." autocomplete="off"/>
+        <datalist id="colabDatalist"></datalist>
+      </div>
+      <div class="top-actions">
+        <button class="btn btn-ghost btn-sm" id="btnClearFilters" title="Limpar filtros">Limpar</button>
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <label class="btn btn-primary" for="fileInput">⬆ Importar Base</label>
+      <input type="file" id="fileInput" accept=".xls,.xlsx,.txt,.csv"/>
+      <button class="btn btn-ghost" id="btnPhotos">👤 Fotos dos Colaboradores</button>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-chip"><b id="stLeituras">0</b><span>Leituras</span></div>
+      <div class="stat-chip"><b id="stColabs">0</b><span>Colaboradores</span></div>
+      <div class="stat-chip"><b id="stAtualizacao">--:--</b><span>Atualizado</span></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
+        <div id="listView">
+          <div class="sidebar-head">
+            <h2>Colaboradores</h2>
+            <span class="count-pill" id="colabCountPill">0</span>
+          </div>
+          <ul class="colab-list" id="colabList">
+            <li class="empty-hint">Importe uma base (.xlsx, .xls, .csv ou .txt) para visualizar os colaboradores e o mapa.</li>
+          </ul>
+        </div>
+
+        <div id="detailView" style="display:none;height:100%;">
+          <div class="detail-panel">
+            <div class="detail-back" id="btnBackToList">← Voltar para lista</div>
+            <div class="detail-header">
+              <div class="avatar-bubble lg" id="detailAvatar"></div>
+              <div>
+                <div class="nm" id="detailNome">-</div>
+                <div class="rt" id="detailUltima">-</div>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-box"><div class="lbl">Grupo</div><div class="val" id="kpiGrupo">-</div></div>
+              <div class="kpi-box"><div class="lbl">Rota (Cadastro)</div><div class="val" id="kpiRota">-</div></div>
+              <div class="kpi-box"><div class="lbl">Total de Leituras</div><div class="val" id="kpiTotal">-</div></div>
+              <div class="kpi-box warn"><div class="lbl">Falta Visitar</div><div class="val" id="kpiFalta">-</div></div>
+              <div class="kpi-box"><div class="lbl">Data Leitura</div><div class="val" id="kpiData">-</div></div>
+              <div class="kpi-box"><div class="lbl">Última Transmitida</div><div class="val" id="kpiHora">-</div></div>
+              <div class="kpi-box km"><div class="lbl">Quilômetros Percorridos</div><div class="val" id="kpiKm">-</div></div>
+              <div class="kpi-box km"><div class="lbl">Horas Trabalhadas</div><div class="val" id="kpiHorasTrabalhadas">-</div></div>
+            </div>
+
+            <div class="section-title">Ocorrências</div>
+            <div class="bar-group" id="grpOcorrencia"></div>
+
+            <div class="section-title">Simultânea</div>
+            <div class="bar-group" id="grpSimultanea"></div>
+
+            <div class="section-title">Motivos</div>
+            <div class="bar-group" id="grpMotivo"></div>
+
+            <div class="section-title">Fotos Tiradas</div>
+            <div class="bar-group" id="grpFotos"></div>
+
+            <div class="fotos-toggle">
+              <button class="btn btn-outline btn-sm" id="btnMostrarFotos">📷 Mostrar Fotos</button>
+              <button class="btn btn-outline btn-sm" id="btnExportPdf">📄 Exportar PDF</button>
+            </div>
+            <div class="fotos-strip" id="fotosStrip" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="map-wrap">
+      <button class="sidebar-toggle" id="btnToggleSidebar" title="Expandir/Recolher menu">☰</button>
+      <div class="map-badge hidden" id="mapBadge">Trajeto <b id="mapBadgeKm">0 km</b></div>
+      <button class="btn btn-outline btn-sm map-export-btn hidden" id="btnExportMapPdf">📄 Exportar PDF</button>
+
+      <div class="overview-legend hidden" id="overviewLegend">
+        <div class="ov-head">
+          <h3>Informações Gerais</h3>
+          <div class="ov-grupo">Grupo: <b id="ovGrupo">-</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-row"><span>Total de Leituras</span><b id="ovTotalLeituras">0</b></div>
+          <div class="ov-row"><span>Total Lidas</span><b id="ovTotalLidas">0</b></div>
+          <div class="ov-row"><span>Faltam Visitar</span><b id="ovFaltamVisitar">0</b></div>
+          <div class="ov-row"><span>Total Ocorrências</span><b id="ovTotalOcorrencias">0</b></div>
+          <div class="ov-row highlight"><span>% Conclusão</span><b id="ovConclusao">0%</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Faturas</div>
+          <div class="ov-row"><span>Entregues</span><b id="ovFaturasEntregues">0</b></div>
+          <div class="ov-row"><span>Não Entregues</span><b id="ovFaturasNaoEntregues">0</b></div>
+          <div class="ov-row"><span>Retidas</span><b id="ovFaturasRetidas">0</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Outros Detalhes</div>
+          <div class="ov-row"><span>Colaboradores</span><b id="ovColaboradores">0</b></div>
+          <div class="ov-row"><span>Qtd. Rotas</span><b id="ovRotas">0</b></div>
+        </div>
+        <div class="ov-section">
+          <div class="ov-subtitle">Legenda</div>
+          <div class="ov-legend-item"><span class="ov-dot start"></span> Ponto Inicial (Seq. 1)</div>
+          <div class="ov-legend-item"><span class="ov-dot current"></span> Último ponto do colaborador</div>
+          <div class="ov-legend-item"><span class="ov-line"></span> Rota (cor exclusiva por colaborador)</div>
+        </div>
+      </div>
+
+      <div id="map"></div>
+      <button class="btn-fullscreen" id="btnFullscreen" title="Tela cheia">⛶</button>
+    </main>
+  </div>
+
+  <footer class="app-footer">
+    Criado por: <b>Igor Lopo</b> · Contato: <a href="tel:+5521995900497">(21) 99590-0497</a>
+  </footer>
+</div>
+
+<!-- Photo management modal -->
+<div class="modal-overlay hidden" id="photoModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Fotos dos Colaboradores</h3>
+      <button class="modal-close" id="closePhotoModal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-row">
+        <label>URL Base das Fotos de Leitura (opcional)</label>
+        <input id="photoBaseUrl" placeholder="https://meuservidor.com/fotos/"/>
+        <small>Usada como prefixo quando LINK_FOTO_1..5 da base importada não é um link completo (http/https).</small>
+      </div>
+      <input class="photo-search" id="photoSearch" placeholder="Buscar colaborador..."/>
+      <div id="photoMapList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" id="btnSavePhotos">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox hidden" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">×</button>
+  <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
+  <img id="lightboxImg" src="" alt="Foto"/>
+  <button class="lightbox-nav next" id="lightboxNext">›</button>
+</div>
+
+<script>
+'use strict';
+
+/* ==================== UTILS ==================== */
+
+function normalizeHeader(s){
+  return String(s||'')
+    .toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Z0-9]/g,'');
+}
+
+const HEADER_MAP = {
+  GRUPO:'grupo',
+  ROTACADASTRO:'rota',
+  SEQUENCIALLEITURA:'sequencialRaw',
+  MATRICULA:'matricula',
+  LEITURA:'leitura',
+  OCORRENCIA:'ocorrencia',
+  SIMULTANEA:'simultanea',
+  MOTIVO:'motivo',
+  DATALEITURA:'dataRaw',
+  HORALEITURA:'horaRaw',
+  DSCCOLABORADOR:'colaborador',
+  TIPOLIGACAO:'tipoLigacao',
+  LATITUDE:'latRaw',
+  LONGITUDE:'lonRaw',
+  TEMFOTO:'temFotoRaw',
+  LINKFOTO1:'linkFoto1',
+  LINKFOTO2:'linkFoto2',
+  LINKFOTO3:'linkFoto3',
+  LINKFOTO4:'linkFoto4',
+  LINKFOTO5:'linkFoto5',
+};
+const REQUIRED_ANY = ['DSCCOLABORADOR','SEQUENCIALLEITURA','LATITUDE'];
+
+function pad(n){return String(n).padStart(2,'0');}
+
+function toNumber(v){
+  if(v===''||v===null||v===undefined) return NaN;
+  if(typeof v==='number') return v;
+  const s = String(v).trim().replace(',','.');
+  const n = parseFloat(s);
+  return n;
+}
+
+function parseCoord(raw){
+  if(raw===''||raw===null||raw===undefined) return NaN;
+  if(typeof raw==='number'){
+    let n = raw;
+    if(Math.abs(n) > 180) n = n/1e6;
+    return n;
+  }
+  let s = String(raw).trim();
+  if(!s) return NaN;
+  const dotCount = (s.match(/\./g)||[]).length;
+  const commaCount = (s.match(/,/g)||[]).length;
+  if(dotCount > 1){
+    s = s.replace(/\./g,'');
+  } else if(commaCount >= 1 && dotCount === 0){
+    s = s.replace(',', '.');
+  } else if(commaCount >= 1 && dotCount === 1){
+    // e.g. 1.234,56 style -> remove thousand dot, comma as decimal
+    s = s.replace(/\./g,'').replace(',', '.');
+  }
+  let n = parseFloat(s);
+  if(isNaN(n)) return NaN;
+  if(Math.abs(n) > 180) n = n/1e6;
+  return n;
+}
+
+function isValidCoord(lat, lon){
+  if(lat===null||lon===null||lat===undefined||lon===undefined) return false;
+  if(isNaN(lat) || isNaN(lon)) return false;
+  if(Math.abs(lat) > 90 || Math.abs(lon) > 180) return false;
+  // (0,0) is the classic "sem sinal de GPS" placeholder used by field collection apps - never a real reading point here.
+  if(Math.abs(lat) < 1e-6 && Math.abs(lon) < 1e-6) return false;
+  return true;
+}
+
+function excelSerialToUTCDate(serial){
+  const utcDays = Math.floor(serial - 25569);
+  const ms = utcDays * 86400 * 1000;
+  return new Date(ms);
+}
+
+function parseDataLeitura(raw){
+  if(raw===''||raw===null||raw===undefined) return null;
+  if(raw instanceof Date){
+    if(isNaN(raw.getTime())) return null;
+    return new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate()));
+  }
+  if(typeof raw==='number'){
+    if(raw <= 0) return null;
+    const d = excelSerialToUTCDate(Math.floor(raw));
+    return d;
+  }
+  const s = String(raw).trim();
+  if(!s) return null;
+  // dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy (optionally followed by a time portion, which is ignored here)
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){
+    let [,d,mo,y] = m;
+    d = +d; mo = +mo;
+    if(y.length===2) y = '20'+y;
+    // source data is expected to be dd/mm/yyyy (pt-BR); if that reading is impossible
+    // (month > 12) but swapping the two makes it valid, assume it was mm/dd/yyyy instead
+    if(mo > 12 && d <= 12){ const t=d; d=mo; mo=t; }
+    return new Date(Date.UTC(+y, mo-1, d));
+  }
+  // yyyy-mm-dd or yyyy/mm/dd (ISO-like, optionally with a time portion)
+  m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+  if(m){
+    let [,y,mo,d] = m;
+    return new Date(Date.UTC(+y, +mo-1, +d));
+  }
+  if(/^\d+([.,]\d+)?$/.test(s)){
+    return excelSerialToUTCDate(Math.floor(parseFloat(s.replace(',','.'))));
+  }
+  return null;
+}
+
+function secondsToHHMMSS(secs){
+  secs = Math.max(0, Math.round(secs)) % 86400;
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60), s = secs%60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function parseHoraLeitura(raw){
+  if(raw===''||raw===null||raw===undefined) return {str:'', seconds:-1};
+  if(raw instanceof Date){
+    if(isNaN(raw.getTime())) return {str:'', seconds:-1};
+    const secs = raw.getUTCHours()*3600 + raw.getUTCMinutes()*60 + raw.getUTCSeconds();
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
+  if(typeof raw==='number'){
+    const secs = Math.round(raw*86400);
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
+  const s = String(raw).trim();
+  let m = s.match(/^(\d{1,2}):(\d{2})(:(\d{2}))?/);
+  if(m){
+    const h=+m[1], mi=+m[2], se=+(m[4]||0);
+    return {str:`${pad(h)}:${pad(mi)}:${pad(se)}`, seconds:h*3600+mi*60+se};
+  }
+  if(/^0?\.\d+$/.test(s)){
+    const secs = Math.round(parseFloat(s)*86400);
+    return {str:secondsToHHMMSS(secs), seconds:secs};
+  }
+  return {str:s, seconds:-1};
+}
+
+function formatDateBR(d){
+  if(!d) return '-';
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)}/${d.getUTCFullYear()}`;
+}
+
+function formatKm(km){
+  if(!isFinite(km)) return '0,00';
+  return km.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function formatPct(v){
+  return v.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})+'%';
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function normalizeText(s){
+  return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+
+function isFaltaVisitarRow(r){
+  const s = (r.simultanea||'').trim();
+  return /^99\b/.test(s) || /sendo entregue/i.test(s);
+}
+
+// FALTA VISITAR is counted against the ROTA (CADASTRO) linked to the colaborador
+// (their most recent record's rota), not against the colaborador identity directly -
+// so it also picks up "99-SENDO ENTREGUE" rows on that rota logged under a
+// different DSC_COLABORADOR (e.g. a substitute on the same route).
+function faltaVisitarByRota(rota){
+  if(!rota) return 0;
+  return state.data.filter(r=>{
+    if(r.rota !== rota) return false;
+    if(state.filters.grupo && r.grupo !== state.filters.grupo) return false;
+    if(state.filters.data && r.dataLeituraStr !== state.filters.data) return false;
+    return isFaltaVisitarRow(r);
+  }).length;
+}
+
+// Ordered so consecutive indices alternate warm/cool and light/dark, keeping
+// colors assigned to adjacent routes as visually distinct as possible.
+const ROUTE_COLORS = [
+  '#0c3564', // Azul escuro
+  '#fb8c00', // Laranja
+  '#2e7d32', // Verde escuro
+  '#8e24aa', // Roxo
+  '#f9a825', // Amarelo
+  '#29b6f6', // Azul claro
+  '#e53935', // Vermelho
+  '#00acc1', // Turquesa
+  '#66bb6a', // Verde claro
+];
+function routeColorForIndex(i){
+  return ROUTE_COLORS[i % ROUTE_COLORS.length];
+}
+
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function routeDistanceKm(points){
+  let total=0;
+  for(let i=1;i<points.length;i++){
+    total += haversineKm(points[i-1][0],points[i-1][1],points[i][0],points[i][1]);
+  }
+  return total;
+}
+
+const NAME_COLORS = ['#1361b8','#0f4a8f','#2b8aed','#0c3564','#4a9bec','#155a9e'];
+function colorFromName(name){
+  let h=0;
+  for(let i=0;i<name.length;i++) h = (h*31 + name.charCodeAt(i)) >>> 0;
+  return NAME_COLORS[h % NAME_COLORS.length];
+}
+function getInitials(name){
+  const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '?';
+  const relevant = parts.filter(p=>p.length>1);
+  const use = relevant.length>=2 ? [relevant[0],relevant[relevant.length-1]] : parts.slice(0,2);
+  return use.map(p=>p[0]).join('').toUpperCase();
+}
+
+/* ==================== STATE ==================== */
+
+const state = {
+  data: [],
+  filters:{data:'', grupo:'', rota:'', colaborador:''},
+  selected:null,
+  photoMap: loadJSON('mrl_photoMap', {}),
+  photoBaseUrl: localStorage.getItem('mrl_photoBaseUrl') || '',
+  fotosVisible:false,
+  fotoIdx:0,
+  lightboxList:[],
+  lightboxIdx:0,
+};
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+/* ==================== IMPORT / PARSING ==================== */
+
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', handleFile);
+
+async function handleFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  try{
+    let aoa;
+    let hyperlinks = null;
+    if(ext==='xlsx' || ext==='xls'){
+      if(typeof XLSX === 'undefined'){
+        alert('Não foi possível carregar o componente de leitura de planilhas (XLSX). Verifique a conexão com a internet e recarregue a página, ou importe o arquivo em formato .csv/.txt.');
+        return;
+      }
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''});
+      hyperlinks = buildHyperlinkMap(ws);
+    } else {
+      const text = await file.text();
+      aoa = parseDelimitedText(text);
+    }
+    const records = buildRecords(aoa, hyperlinks);
+    if(!records.length){
+      alert('Não foi possível reconhecer as colunas da base. Verifique se o arquivo possui o cabeçalho esperado (DSC_COLABORADOR, SEQUENCIAL_LEITURA, LATITUDE, LONGITUDE, etc).');
+      return;
+    }
+    state.data = records;
+    state.selected = null;
+    onDataLoaded();
+  }catch(err){
+    console.error(err);
+    alert('Erro ao importar arquivo: '+err.message);
+  }finally{
+    fileInput.value='';
+  }
+}
+
+function parseDelimitedText(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.length>0);
+  if(!lines.length) return [];
+  const sample = lines.slice(0, Math.min(5,lines.length)).join('\n');
+  const counts = { ';': (sample.match(/;/g)||[]).length, ',': (sample.match(/,/g)||[]).length, '\t': (sample.match(/\t/g)||[]).length };
+  const sep = Object.keys(counts).reduce((a,b)=> counts[b]>counts[a] ? b : a, ';');
+  return lines.map(line=>{
+    // basic CSV split with quote support
+    const out=[]; let cur=''; let inQ=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ inQ=!inQ; continue; }
+      if(ch===sep && !inQ){ out.push(cur); cur=''; continue; }
+      cur+=ch;
+    }
+    out.push(cur);
+    return out.map(v=>v.trim());
+  });
+}
+
+function buildHyperlinkMap(ws){
+  // Excel lets a cell show friendly text (e.g. "Ver foto") while the real URL lives
+  // separately in the cell's hyperlink relationship. sheet_to_json only ever reads the
+  // visible text, so LINK_FOTO_x columns built with real hyperlinks would silently
+  // capture the wrong string. This walks the raw worksheet cells and records the
+  // actual target URL for every cell that has one, keyed by "row_col" (0-based).
+  const map = new Map();
+  if(!ws || typeof XLSX === 'undefined') return map;
+  Object.keys(ws).forEach(addr=>{
+    if(addr[0]==='!') return;
+    const cell = ws[addr];
+    if(cell && cell.l && cell.l.Target){
+      const dec = XLSX.utils.decode_cell(addr);
+      map.set(dec.r+'_'+dec.c, String(cell.l.Target).trim());
+    }
+  });
+  return map;
+}
+
+function buildRecords(aoa, hyperlinks){
+  if(!aoa || !aoa.length) return [];
+  let headerIdx = -1, colIndexMap = {};
+  for(let r=0; r<Math.min(aoa.length, 15); r++){
+    const row = aoa[r];
+    if(!row) continue;
+    const norm = row.map(normalizeHeader);
+    const hits = REQUIRED_ANY.filter(k=>norm.includes(k));
+    if(hits.length >= 2){
+      headerIdx = r;
+      norm.forEach((n,i)=>{
+        if(HEADER_MAP[n]){
+          colIndexMap[HEADER_MAP[n]] = i;
+          return;
+        }
+        // fallback pattern matching for header variants not covered by the exact dictionary
+        // (e.g. "LINK FOTO 1", "FOTO_1", "URL_FOTO_1", "TEM FOTO", "POSSUI FOTO")
+        let fm = n.match(/^(?:LINK)?(?:URL)?FOTO0*([1-5])$/);
+        if(fm && colIndexMap['linkFoto'+fm[1]]===undefined){ colIndexMap['linkFoto'+fm[1]] = i; return; }
+        if(/^(TEMFOTO|POSSUIFOTO|COMFOTO|FOTOTIRADA)$/.test(n) && colIndexMap['temFotoRaw']===undefined){ colIndexMap['temFotoRaw'] = i; return; }
+      });
+      break;
+    }
+  }
+  if(headerIdx===-1) return [];
+
+  const records=[];
+  for(let r=headerIdx+1; r<aoa.length; r++){
+    const row = aoa[r];
+    if(!row || row.every(c=>c===''||c===null||c===undefined)) continue;
+    const get = key => colIndexMap[key]!==undefined ? row[colIndexMap[key]] : '';
+    const getFotoLink = key => {
+      const c = colIndexMap[key];
+      if(c===undefined) return '';
+      const hyperlinkTarget = hyperlinks && hyperlinks.get(r+'_'+c);
+      return hyperlinkTarget || row[c];
+    };
+
+    const colaborador = String(get('colaborador')||'').trim();
+    const lat = parseCoord(get('latRaw'));
+    const lon = parseCoord(get('lonRaw'));
+    if(!colaborador && (isNaN(lat) || isNaN(lon))) continue;
+
+    const dataLeitura = parseDataLeitura(get('dataRaw'));
+    const hora = parseHoraLeitura(get('horaRaw'));
+    const sequencial = toNumber(get('sequencialRaw'));
+
+    let ts = null;
+    if(dataLeitura){
+      ts = new Date(dataLeitura.getTime() + Math.max(0,hora.seconds)*1000);
+    }
+
+    const fotos = [getFotoLink('linkFoto1'),getFotoLink('linkFoto2'),getFotoLink('linkFoto3'),getFotoLink('linkFoto4'),getFotoLink('linkFoto5')]
+      .map(x=>String(x||'').trim()).filter(Boolean);
+
+    const temFotoRawStr = String(get('temFotoRaw')||'').trim();
+    const temFoto = temFotoRawStr ? /^S/i.test(temFotoRawStr) : fotos.length > 0;
+
+    records.push({
+      grupo: String(get('grupo')||'').trim(),
+      rota: String(get('rota')||'').trim(),
+      sequencial: isNaN(sequencial) ? null : sequencial,
+      matricula: String(get('matricula')||'').trim(),
+      leitura: String(get('leitura')||'').trim(),
+      ocorrencia: String(get('ocorrencia')||'').trim(),
+      simultanea: String(get('simultanea')||'').trim(),
+      motivo: String(get('motivo')||'').trim(),
+      dataLeitura,
+      dataLeituraStr: formatDateBR(dataLeitura),
+      hora,
+      colaborador,
+      tipoLigacao: String(get('tipoLigacao')||'').trim(),
+      lat, lon,
+      temFoto,
+      fotos,
+      ts,
+    });
+  }
+  return records;
+}
+
+/* ==================== FILTER OPTIONS / PIPELINE ==================== */
+
+function uniqueSorted(arr){
+  return Array.from(new Set(arr.filter(v=>v!==''&&v!==null&&v!==undefined))).sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true}));
+}
+
+function applyFilters(records){
+  const f = state.filters;
+  return records.filter(r=>{
+    if(f.data && r.dataLeituraStr !== f.data) return false;
+    if(f.grupo && r.grupo !== f.grupo) return false;
+    if(f.rota && r.rota !== f.rota) return false;
+    if(f.colaborador && r.colaborador !== f.colaborador) return false;
+    return true;
+  });
+}
+
+function refreshFilterOptions(){
+  const base = state.data;
+  const dates = uniqueSorted(base.map(r=>r.dataLeituraStr)).filter(d=>d!=='-'&&d);
+  const dataAffinity = base.filter(r=> !state.filters.grupo || r.grupo===state.filters.grupo);
+  const grupos = uniqueSorted(base.map(r=>r.grupo));
+  const rotaScope = base.filter(r=> !state.filters.grupo || r.grupo===state.filters.grupo);
+  const rotas = uniqueSorted(rotaScope.map(r=>r.rota));
+  const colabs = uniqueSorted(base.map(r=>r.colaborador));
+
+  fillSelect(document.getElementById('fData'), dates, 'Todas', state.filters.data);
+  fillSelect(document.getElementById('fGrupo'), grupos, 'Todos', state.filters.grupo);
+  fillSelect(document.getElementById('fRota'), rotas, 'Todas', state.filters.rota);
+
+  const dl = document.getElementById('colabDatalist');
+  dl.innerHTML = colabs.map(c=>`<option value="${escapeHtml(c)}"></option>`).join('');
+}
+
+function fillSelect(sel, values, placeholder, current){
+  sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.value = values.includes(current) ? current : '';
+}
+
+document.getElementById('fData').addEventListener('change', e=>{ state.filters.data=e.target.value; onFiltersChanged(); });
+document.getElementById('fGrupo').addEventListener('change', e=>{ state.filters.grupo=e.target.value; state.filters.rota=''; onFiltersChanged(); });
+document.getElementById('fRota').addEventListener('change', e=>{ state.filters.rota=e.target.value; onFiltersChanged(); });
+document.getElementById('fColab').addEventListener('change', e=>{
+  const val = e.target.value.trim();
+  const exists = state.data.some(r=>r.colaborador===val);
+  state.filters.colaborador = exists ? val : '';
+  if(exists){ selectColaborador(val); } else { state.selected=null; onFiltersChanged(); }
+});
+document.getElementById('btnClearFilters').addEventListener('click', ()=>{
+  state.filters = {data:'',grupo:'',rota:'',colaborador:''};
+  state.selected = null;
+  document.getElementById('fColab').value='';
+  onFiltersChanged();
+});
+
+function onDataLoaded(){
+  refreshFilterOptions();
+  updateStatsStrip();
+  showListView();
+  renderSidebarList();
+  renderMap();
+  renderOverviewLegend();
+}
+
+function onFiltersChanged(){
+  refreshFilterOptions();
+  if(state.selected){
+    showDetailView();
+    renderDetail();
+    renderMap();
+  } else {
+    showListView();
+    renderSidebarList();
+    renderMap();
+  }
+  renderOverviewLegend();
+}
+
+function updateStatsStrip(){
+  document.getElementById('stLeituras').textContent = state.data.length.toLocaleString('pt-BR');
+  document.getElementById('stColabs').textContent = uniqueSorted(state.data.map(r=>r.colaborador)).length.toLocaleString('pt-BR');
+  const now = new Date();
+  document.getElementById('stAtualizacao').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+/* ==================== SIDEBAR: LIST VIEW ==================== */
+
+function showListView(){
+  document.getElementById('listView').style.display='flex';
+  document.getElementById('detailView').style.display='none';
+}
+function showDetailView(){
+  document.getElementById('listView').style.display='none';
+  document.getElementById('detailView').style.display='flex';
+}
+
+function latestPerColaborador(records){
+  const byName = groupByColaborador(records);
+  return uniqueSorted(Object.keys(byName))
+    .map(name=>pickLatestValidPoint(byName[name]))
+    .filter(Boolean);
+}
+
+function pickLatestValidPoint(records){
+  const now = new Date();
+  const valid = records.filter(r=>isValidCoord(r.lat, r.lon));
+  if(!valid.length) return null;
+  const past = valid.filter(r=>r.ts && r.ts.getTime() <= now.getTime());
+  const pool = past.length ? past : valid;
+  let best = pool[0];
+  pool.forEach(r=>{
+    const bestTs = best.ts ? best.ts.getTime() : (best.sequencial||0);
+    const rTs = r.ts ? r.ts.getTime() : (r.sequencial||0);
+    if(rTs > bestTs) best = r;
+  });
+  return best;
+}
+
+function groupByColaborador(records){
+  const byName = {};
+  records.forEach(r=>{
+    const arr = byName[r.colaborador] || (byName[r.colaborador]=[]);
+    arr.push(r);
+  });
+  return byName;
+}
+
+function renderSidebarList(){
+  const filtered = applyFilters(state.data);
+  const list = latestPerColaborador(filtered);
+  const ul = document.getElementById('colabList');
+  document.getElementById('colabCountPill').textContent = list.length;
+
+  if(!state.data.length){
+    ul.innerHTML = `<li class="empty-hint">Importe uma base (.xlsx, .xls, .csv ou .txt) para visualizar os colaboradores e o mapa.</li>`;
+    return;
+  }
+  if(!list.length){
+    ul.innerHTML = `<li class="empty-hint">Nenhum colaborador encontrado para os filtros selecionados.</li>`;
+    return;
+  }
+  ul.innerHTML = list.map(r=>{
+    const photo = state.photoMap[r.colaborador];
+    const avatarInner = photo
+      ? `style="background-image:url('${escapeHtml(photo)}')"`
+      : `style="background-color:${colorFromName(r.colaborador)}"`;
+    const initials = photo ? '' : getInitials(r.colaborador);
+    const timeLbl = r.ts ? `${r.dataLeituraStr} · ${r.hora.str||'-'}` : 'sem horário';
+    return `<li class="colab-item" data-name="${escapeHtml(r.colaborador)}">
+      <div class="avatar-bubble" ${avatarInner}>${initials}</div>
+      <div>
+        <div class="colab-name">${escapeHtml(r.colaborador)}</div>
+        <div class="colab-sub">Rota ${escapeHtml(r.rota||'-')} · ${escapeHtml(timeLbl)}</div>
+      </div>
+    </li>`;
+  }).join('');
+
+  ul.querySelectorAll('.colab-item').forEach(li=>{
+    li.addEventListener('click', ()=> selectColaborador(li.dataset.name));
+  });
+}
+
+function selectColaborador(name){
+  state.selected = name;
+  state.filters.colaborador = name;
+  document.getElementById('fColab').value = name;
+  state.fotosVisible = false;
+  state.fotoIdx = 0;
+  document.getElementById('btnMostrarFotos').textContent = '📷 Mostrar Fotos';
+  showDetailView();
+  renderDetail();
+  renderMap();
+  renderOverviewLegend();
+}
+
+document.getElementById('btnBackToList').addEventListener('click', ()=>{
+  state.selected = null;
+  state.filters.colaborador = '';
+  document.getElementById('fColab').value = '';
+  showListView();
+  renderSidebarList();
+  renderMap();
+  renderOverviewLegend();
+});
+
+/* ==================== DETAIL PANEL ==================== */
+
+function recordsForSelected(){
+  if(!state.selected) return [];
+  // Only the filters actually active in the top bar apply here - no implicit
+  // "most common rota" guessing, which previously could silently exclude the
+  // colaborador's current rota (and its FALTA VISITAR rows) whenever their
+  // history spanned more than one rota.
+  return state.data.filter(r=>{
+    if(r.colaborador !== state.selected) return false;
+    if(state.filters.rota && r.rota !== state.filters.rota) return false;
+    if(state.filters.grupo && r.grupo !== state.filters.grupo) return false;
+    if(state.filters.data && r.dataLeituraStr !== state.filters.data) return false;
+    return true;
+  });
+}
+
+function groupCount(records, field, matcher){
+  const rows = records.filter(r=> matcher ? matcher(r[field]) : String(r[field]||'').trim()!=='');
+  const counts = {};
+  rows.forEach(r=>{ const k=String(r[field]).trim(); counts[k]=(counts[k]||0)+1; });
+  const total = rows.length;
+  return Object.keys(counts)
+    .map(k=>({label:k, count:counts[k], pct: total ? counts[k]/total*100 : 0}))
+    .sort((a,b)=>b.count-a.count);
+}
+
+function computeHorasTrabalhadas(ordered){
+  if(!ordered || ordered.length < 2) return null;
+  const first = ordered[0], last = ordered[ordered.length-1];
+  let diffSec = null;
+  if(first.ts && last.ts){
+    diffSec = (last.ts.getTime() - first.ts.getTime())/1000;
+  } else if(first.hora && last.hora && first.hora.seconds>=0 && last.hora.seconds>=0){
+    diffSec = last.hora.seconds - first.hora.seconds;
+  }
+  if(diffSec===null || !isFinite(diffSec) || diffSec < 0) return null;
+  const h = Math.floor(diffSec/3600);
+  const m = Math.floor((diffSec%3600)/60);
+  return `${pad(h)}:${pad(m)}`;
+}
+
+function renderBarGroup(containerId, items, cls){
+  const el = document.getElementById(containerId);
+  if(!items.length){ el.innerHTML = `<div class="no-data-mini">Sem dados para o período/rota selecionados.</div>`; return; }
+  el.innerHTML = items.map(it=>`
+    <div class="bar-row">
+      <div class="bar-top"><span>${escapeHtml(it.label)}</span><b>${it.count} - ${formatPct(it.pct)}</b></div>
+      <div class="bar-track"><div class="bar-fill ${cls||''}" style="width:${it.pct}%"></div></div>
+    </div>
+  `).join('');
+}
+
+function renderDetail(){
+  const recs = recordsForSelected();
+  const name = state.selected;
+  const photo = state.photoMap[name];
+
+  document.getElementById('detailAvatar').style.backgroundImage = photo ? `url('${photo}')` : '';
+  document.getElementById('detailAvatar').style.backgroundColor = photo ? '' : colorFromName(name||'');
+  document.getElementById('detailAvatar').textContent = photo ? '' : getInitials(name||'');
+  document.getElementById('detailNome').textContent = name || '-';
+
+  if(!recs.length){
+    document.getElementById('detailUltima').textContent = 'Sem leituras para os filtros atuais';
+    ['kpiGrupo','kpiRota','kpiTotal','kpiFalta','kpiData','kpiHora','kpiKm','kpiHorasTrabalhadas'].forEach(id=>document.getElementById(id).textContent='-');
+    ['grpOcorrencia','grpSimultanea','grpMotivo','grpFotos'].forEach(id=>renderBarGroup(id, []));
+    document.getElementById('fotosStrip').innerHTML='';
+    return;
+  }
+
+  const totalLeituras = recs.length;
+
+  let latest = recs[0];
+  recs.forEach(r=>{
+    const a = latest.ts ? latest.ts.getTime() : -1;
+    const b = r.ts ? r.ts.getTime() : -1;
+    if(b > a) latest = r;
+  });
+
+  const faltaVisitar = faltaVisitarByRota(latest.rota);
+
+  document.getElementById('kpiGrupo').textContent = latest.grupo || '-';
+  document.getElementById('kpiRota').textContent = latest.rota || '-';
+  document.getElementById('kpiTotal').textContent = totalLeituras;
+  document.getElementById('kpiFalta').textContent = faltaVisitar;
+  document.getElementById('kpiData').textContent = latest.dataLeituraStr || '-';
+  document.getElementById('kpiHora').textContent = latest.hora.str || '-';
+  document.getElementById('detailUltima').textContent = `Última leitura: ${latest.dataLeituraStr||'-'} às ${latest.hora.str||'-'}`;
+
+  const km = segmentedRouteKm(orderedRouteSegments(recs));
+  document.getElementById('kpiKm').textContent = `${formatKm(km)} km`;
+  const horas = computeHorasTrabalhadas(sortBySequenceThenTime(recs));
+  document.getElementById('kpiHorasTrabalhadas').textContent = horas || '-';
+
+  renderBarGroup('grpOcorrencia', groupCount(recs,'ocorrencia'));
+  renderBarGroup('grpSimultanea', groupCount(recs,'simultanea'));
+  renderBarGroup('grpMotivo', groupCount(recs,'motivo'));
+  renderBarGroup('grpFotos', groupCount(recs,'temFoto', v=>true).map(it=>({...it, label: it.label==='true'?'SIM':'NÃO'})), 'ok');
+
+  renderFotosStrip(recs);
+}
+
+function resolveFotoUrl(link){
+  if(!link) return '';
+  if(/^https?:\/\//i.test(link) || /^data:/i.test(link)) return link;
+  const base = state.photoBaseUrl;
+  return base ? (base.replace(/\/?$/, '/') + link) : link;
+}
+
+function renderFotosStrip(recs){
+  const strip = document.getElementById('fotosStrip');
+  strip.style.display = state.fotosVisible ? 'block' : 'none';
+  if(!state.fotosVisible) return;
+
+  const links = [];
+  (recs||[]).forEach(r=> (r.fotos||[]).forEach(f=> links.push(resolveFotoUrl(f))));
+  state.lightboxList = links;
+
+  if(!links.length){
+    strip.innerHTML = `<div class="no-data-mini">Nenhuma foto de leitura registrada para este colaborador nos filtros atuais.</div>`;
+    return;
+  }
+  if(state.fotoIdx >= links.length) state.fotoIdx = 0;
+  renderCarousel();
+}
+
+function renderCarousel(){
+  const strip = document.getElementById('fotosStrip');
+  const links = state.lightboxList;
+  if(!links.length) return;
+  const idx = state.fotoIdx;
+  strip.innerHTML = `
+    <div class="foto-carousel">
+      <div class="foto-main">
+        ${links.length>1 ? '<button class="fc-nav prev" id="fcPrev">‹</button>' : ''}
+        <img class="fc-image" id="fcMainImg" src="${escapeHtml(links[idx])}" alt="Foto de leitura"
+          onerror="this.outerHTML='<div class=&quot;fc-empty&quot;>Foto indisponível</div>'"/>
+        ${links.length>1 ? '<button class="fc-nav next" id="fcNext">›</button>' : ''}
+        <div class="fc-counter">${idx+1}/${links.length}</div>
+      </div>
+      <div class="foto-thumbs" id="fcThumbs">
+        ${links.map((url,i)=>`<img class="foto-thumb ${i===idx?'active':''}" data-idx="${i}" src="${escapeHtml(url)}"
+          onerror="this.outerHTML='<div class=&quot;foto-thumb-empty&quot; data-idx=&quot;${i}&quot;>s/foto</div>'"/>`).join('')}
+      </div>
+    </div>
+  `;
+  const mainImg = document.getElementById('fcMainImg');
+  if(mainImg) mainImg.addEventListener('click', ()=> openLightbox(idx));
+  const prevBtn = document.getElementById('fcPrev');
+  const nextBtn = document.getElementById('fcNext');
+  if(prevBtn) prevBtn.addEventListener('click', ()=>{ state.fotoIdx = (idx-1+links.length)%links.length; renderCarousel(); });
+  if(nextBtn) nextBtn.addEventListener('click', ()=>{ state.fotoIdx = (idx+1)%links.length; renderCarousel(); });
+  document.getElementById('fcThumbs').querySelectorAll('[data-idx]').forEach(el=>{
+    el.addEventListener('click', ()=>{ state.fotoIdx = parseInt(el.dataset.idx,10); renderCarousel(); });
+  });
+}
+
+document.getElementById('btnMostrarFotos').addEventListener('click', ()=>{
+  state.fotosVisible = !state.fotosVisible;
+  state.fotoIdx = 0;
+  document.getElementById('btnMostrarFotos').textContent = state.fotosVisible ? '📷 Ocultar Fotos' : '📷 Mostrar Fotos';
+  renderFotosStrip(recordsForSelected());
+});
+
+/* ==================== ROUTE ORDERING ==================== */
+
+function sortBySequenceThenTime(list){
+  return list.slice().sort((a,b)=>{
+    if(a.sequencial!==null && b.sequencial!==null && a.sequencial!==b.sequencial) return a.sequencial-b.sequencial;
+    const at = a.ts?a.ts.getTime():0, bt = b.ts?b.ts.getTime():0;
+    return at-bt;
+  });
+}
+
+function orderedRoutePoints(recs){
+  return sortBySequenceThenTime(recs.filter(r=>isValidCoord(r.lat, r.lon)));
+}
+
+// A colaborador can execute more than one ROTA (CADASTRO) in the same day; treating
+// all of it as a single ordered path crosses/joins unrelated routes and inflates the
+// distance with the jump between them. This splits the valid points into one segment
+// per rota (each internally ordered as before), so each route gets its own polyline
+// and its own starting point, ordered chronologically by when each rota was worked.
+function orderedRouteSegments(recs){
+  const valid = recs.filter(r=>isValidCoord(r.lat, r.lon));
+  const byRota = {};
+  const rotaOrder = [];
+  valid.forEach(r=>{
+    const key = r.rota || '';
+    if(!byRota[key]){ byRota[key] = []; rotaOrder.push(key); }
+    byRota[key].push(r);
+  });
+  const segments = rotaOrder.map(key => sortBySequenceThenTime(byRota[key]));
+  segments.sort((a,b)=>{
+    const at = a[0].ts ? a[0].ts.getTime() : 0;
+    const bt = b[0].ts ? b[0].ts.getTime() : 0;
+    return at-bt;
+  });
+  return segments;
+}
+
+function segmentedRouteKm(segments){
+  return segments.reduce((sum, seg) => sum + routeDistanceKm(seg.map(r=>[r.lat,r.lon])), 0);
+}
+
+/* ==================== MAP ==================== */
+
+let map=null, markersLayer=null, routeLayer=null, mapAvailable=false;
+
+function initMap(){
+  if(typeof L === 'undefined'){
+    document.getElementById('map').innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:30px;text-align:center;color:var(--gray-500);font-size:13px;line-height:1.6;">
+      Mapa indisponível: não foi possível carregar o OpenStreetMap/Leaflet.<br/>Verifique a conexão com a internet e recarregue a página.<br/>Os filtros, KPIs e a importação continuam funcionando normalmente.
+    </div>`;
+    return;
+  }
+  try{
+    map = L.map('map', {zoomControl:true}).setView([-22.9068,-43.1729], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:19,
+      crossOrigin:true,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    markersLayer = L.layerGroup().addTo(map);
+    routeLayer = L.layerGroup().addTo(map);
+    mapAvailable = true;
+  }catch(err){
+    console.error('Falha ao iniciar o mapa', err);
+  }
+}
+initMap();
+
+function avatarDivIcon(name, size, extraClass, ringColor){
+  const photo = state.photoMap[name];
+  const style = photo ? `background-image:url('${photo}')` : `background-color:${colorFromName(name)}`;
+  const initials = photo ? '' : getInitials(name);
+  const ringStyle = ringColor ? `box-shadow:0 2px 6px rgba(9,37,68,.35),0 0 0 3px ${ringColor};` : '';
+  return L.divIcon({
+    className:'marker-avatar-wrap '+(extraClass||''),
+    html:`<div class="avatar-bubble marker-wrap" style="${style};width:${size}px;height:${size}px;font-size:${Math.round(size*0.32)}px;${ringStyle}">${initials}</div>`,
+    iconSize:[size,size],
+    iconAnchor:[size/2, size/2],
+    popupAnchor:[0, -size/2],
+  });
+}
+
+function pointDivIcon(color){
+  return L.divIcon({
+    className:'marker-point',
+    html:`<span class="dot" style="background:${color}"></span>`,
+    iconSize:[16,16],
+    iconAnchor:[8,8],
+  });
+}
+
+function startDivIcon(){
+  return L.divIcon({
+    className:'marker-start',
+    html:`<div class="marker-start-wrap"><span class="pulse"></span><span class="core">1</span></div>`,
+    iconSize:[34,34],
+    iconAnchor:[17,17],
+  });
+}
+
+function renderMap(){
+  const badge = document.getElementById('mapBadge');
+  if(mapAvailable){ markersLayer.clearLayers(); routeLayer.clearLayers(); }
+
+  if(state.selected){
+    const recs = recordsForSelected();
+    const ordered = orderedRoutePoints(recs);
+    if(!ordered.length){
+      badge.classList.add('hidden');
+      return;
+    }
+    const segments = orderedRouteSegments(recs);
+    const km = segmentedRouteKm(segments);
+    document.getElementById('mapBadgeKm').textContent = `${formatKm(km)} km`;
+    badge.classList.remove('hidden');
+
+    if(!mapAvailable) return;
+
+    const last = ordered[ordered.length-1]; // último ponto registrado - lógica inalterada
+    const allCoords = [];
+    const segmentStarts = segments.map(seg => seg.find(r=>r.sequencial===1) || seg[0]);
+    segments.forEach((seg, i)=>{
+      const segCoords = seg.map(r=>[r.lat,r.lon]);
+      allCoords.push(...segCoords);
+      if(segCoords.length>1){
+        L.polyline(segCoords, {color:'#1c7ce0', weight:4, opacity:0.85}).addTo(routeLayer);
+      }
+      const start = segmentStarts[i];
+      L.marker([start.lat,start.lon], {icon:startDivIcon()})
+        .bindPopup(`<b>${escapeHtml(start.colaborador)}</b><br/>Ponto Inicial · Rota ${escapeHtml(start.rota||'-')} · Seq. ${start.sequencial ?? '-'}<br/>${start.dataLeituraStr} ${start.hora.str}`)
+        .addTo(routeLayer);
+    });
+    if(!segmentStarts.includes(last)){
+      L.marker([last.lat,last.lon], {icon:avatarDivIcon(last.colaborador, 42)})
+        .bindPopup(`<b>${escapeHtml(last.colaborador)}</b><br/>Ponto atual · Seq. ${last.sequencial ?? '-'}<br/>${last.dataLeituraStr} ${last.hora.str}`)
+        .addTo(routeLayer);
+    }
+
+    if(allCoords.length>1){
+      map.fitBounds(L.latLngBounds(allCoords), {padding:[60,60]});
+    } else {
+      map.setView(allCoords[0], 15);
+    }
+  } else {
+    badge.classList.add('hidden');
+    if(!mapAvailable) return;
+    const filtered = applyFilters(state.data);
+    const byColab = groupByColaborador(filtered);
+    const names = uniqueSorted(Object.keys(byColab));
+    const bounds = [];
+    names.forEach((name, idx)=>{
+      const recs = byColab[name];
+      const color = routeColorForIndex(idx);
+      const ordered = orderedRoutePoints(recs);
+
+      if(ordered.length >= 2){
+        L.polyline(ordered.map(r=>[r.lat,r.lon]), {color, weight:3, opacity:0.75}).addTo(routeLayer);
+      }
+      if(ordered.length >= 1){
+        const start = ordered.find(r=>r.sequencial===1) || ordered[0];
+        L.marker([start.lat,start.lon], {icon:pointDivIcon(color)})
+          .bindPopup(`<b>${escapeHtml(name)}</b><br/>Início da rota · Seq. ${start.sequencial ?? '-'}<br/>${start.dataLeituraStr} ${start.hora.str}`)
+          .addTo(routeLayer);
+        ordered.forEach(r=>bounds.push([r.lat,r.lon]));
+      }
+
+      const last = pickLatestValidPoint(recs);
+      if(last){
+        L.marker([last.lat,last.lon], {icon:avatarDivIcon(name, 40, '', color)})
+          .bindPopup(`<b>${escapeHtml(name)}</b><br/>Rota ${escapeHtml(last.rota||'-')} · Grupo ${escapeHtml(last.grupo||'-')}<br/>${last.dataLeituraStr} ${last.hora.str}`)
+          .on('click', ()=> selectColaborador(name))
+          .addTo(markersLayer);
+        bounds.push([last.lat,last.lon]);
+      }
+    });
+    if(bounds.length){
+      map.fitBounds(L.latLngBounds(bounds), {padding:[60,60], maxZoom:15});
+    }
+  }
+}
+
+function renderOverviewLegend(){
+  const panel = document.getElementById('overviewLegend');
+  const exportBtn = document.getElementById('btnExportMapPdf');
+  if(state.selected || !state.data.length){
+    panel.classList.add('hidden');
+    exportBtn.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  exportBtn.classList.remove('hidden');
+
+  const filtered = applyFilters(state.data);
+  const totalLeituras = filtered.filter(r=>r.matricula).length;
+  const pct = n => totalLeituras ? n/totalLeituras*100 : 0;
+
+  const totalLidas = filtered.filter(r=> !r.ocorrencia && normalizeText(r.simultanea)!=='99-SENDO ENTREGUE').length;
+  const faltamVisitar = filtered.filter(isFaltaVisitarRow).length;
+  const totalOcorrencias = filtered.filter(r=> r.ocorrencia).length;
+  const pctConclusao = pct(totalLidas + totalOcorrencias);
+
+  const totalNaoEntregues = filtered.filter(r=> normalizeText(r.simultanea).includes('00-7NAO ENTREGUE')).length;
+  const totalRetidas = filtered.filter(r=> normalizeText(r.simultanea).includes('RETIDA')).length;
+  const totalEntregues = filtered.filter(r=>{
+    const n = normalizeText(r.simultanea);
+    return n !== '00-7NAO ENTREGUE' && !n.includes('RETIDA');
+  }).length;
+
+  const colaboradoresCount = uniqueSorted(filtered.map(r=>r.colaborador)).length;
+  const rotasCount = uniqueSorted(filtered.map(r=>r.rota)).length;
+  const gruposPresentes = uniqueSorted(filtered.map(r=>r.grupo));
+  const grupoLabel = state.filters.grupo || (gruposPresentes.length===1 ? gruposPresentes[0] : 'Todos');
+
+  document.getElementById('ovGrupo').textContent = grupoLabel || '-';
+  document.getElementById('ovTotalLeituras').textContent = totalLeituras.toLocaleString('pt-BR');
+  document.getElementById('ovTotalLidas').textContent = `${totalLidas.toLocaleString('pt-BR')} (${formatPct(pct(totalLidas))})`;
+  document.getElementById('ovFaltamVisitar').textContent = `${faltamVisitar.toLocaleString('pt-BR')} (${formatPct(pct(faltamVisitar))})`;
+  document.getElementById('ovTotalOcorrencias').textContent = `${totalOcorrencias.toLocaleString('pt-BR')} (${formatPct(pct(totalOcorrencias))})`;
+  document.getElementById('ovConclusao').textContent = formatPct(pctConclusao);
+  document.getElementById('ovFaturasEntregues').textContent = totalEntregues.toLocaleString('pt-BR');
+  document.getElementById('ovFaturasNaoEntregues').textContent = totalNaoEntregues.toLocaleString('pt-BR');
+  document.getElementById('ovFaturasRetidas').textContent = totalRetidas.toLocaleString('pt-BR');
+  document.getElementById('ovColaboradores').textContent = colaboradoresCount.toLocaleString('pt-BR');
+  document.getElementById('ovRotas').textContent = rotasCount.toLocaleString('pt-BR');
+}
+
+/* ==================== SIDEBAR TOGGLE / FULLSCREEN ==================== */
+
+document.getElementById('btnToggleSidebar').addEventListener('click', ()=>{
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  if(mapAvailable) setTimeout(()=> map.invalidateSize(), 240);
+});
+
+document.getElementById('btnFullscreen').addEventListener('click', ()=>{
+  const wrap = document.querySelector('.map-wrap');
+  if(!document.fullscreenElement){
+    wrap.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+});
+document.addEventListener('fullscreenchange', ()=>{ if(mapAvailable) setTimeout(()=>map.invalidateSize(), 150); });
+
+/* ==================== PHOTO MODAL ==================== */
+
+const photoModal = document.getElementById('photoModal');
+document.getElementById('btnPhotos').addEventListener('click', ()=>{
+  document.getElementById('photoBaseUrl').value = state.photoBaseUrl;
+  renderPhotoModalList('');
+  photoModal.classList.remove('hidden');
+});
+document.getElementById('closePhotoModal').addEventListener('click', ()=> photoModal.classList.add('hidden'));
+photoModal.addEventListener('click', e=>{ if(e.target===photoModal) photoModal.classList.add('hidden'); });
+
+document.getElementById('photoSearch').addEventListener('input', e=> renderPhotoModalList(e.target.value.trim()));
+
+function renderPhotoModalList(filterText){
+  const names = uniqueSorted(state.data.map(r=>r.colaborador));
+  const filtered = filterText ? names.filter(n=>n.toLowerCase().includes(filterText.toLowerCase())) : names;
+  const container = document.getElementById('photoMapList');
+  if(!filtered.length){
+    container.innerHTML = `<div class="no-data-mini">Importe uma base para listar os colaboradores, ou ajuste a busca.</div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(n=>`
+    <div class="photo-map-row">
+      <div class="nm">${escapeHtml(n)}</div>
+      <input type="text" data-name="${escapeHtml(n)}" placeholder="https://.../foto.jpg" value="${escapeHtml(state.photoMap[n]||'')}"/>
+    </div>
+  `).join('');
+}
+
+document.getElementById('btnSavePhotos').addEventListener('click', ()=>{
+  document.querySelectorAll('#photoMapList input').forEach(inp=>{
+    const name = inp.dataset.name;
+    const val = inp.value.trim();
+    if(val) state.photoMap[name] = val; else delete state.photoMap[name];
+  });
+  state.photoBaseUrl = document.getElementById('photoBaseUrl').value.trim();
+  saveJSON('mrl_photoMap', state.photoMap);
+  localStorage.setItem('mrl_photoBaseUrl', state.photoBaseUrl);
+  photoModal.classList.add('hidden');
+  renderSidebarList();
+  if(state.selected) renderDetail();
+  renderMap();
+});
+
+/* ==================== LIGHTBOX ==================== */
+
+function openLightbox(idx){
+  state.lightboxIdx = idx;
+  document.getElementById('lightboxImg').src = state.lightboxList[idx];
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox(){ document.getElementById('lightbox').classList.add('hidden'); }
+function navLightbox(delta){
+  const n = state.lightboxList.length;
+  state.lightboxIdx = (state.lightboxIdx + delta + n) % n;
+  document.getElementById('lightboxImg').src = state.lightboxList[state.lightboxIdx];
+}
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+document.getElementById('lightboxPrev').addEventListener('click', ()=>navLightbox(-1));
+document.getElementById('lightboxNext').addEventListener('click', ()=>navLightbox(1));
+document.getElementById('lightbox').addEventListener('click', e=>{ if(e.target.id==='lightbox') closeLightbox(); });
+
+/* ==================== EXPORT PDF ==================== */
+
+document.getElementById('btnExportPdf').addEventListener('click', exportPdf);
+
+async function exportPdf(){
+  if(!state.selected){
+    alert('Selecione um colaborador para gerar o relatório em PDF.');
+    return;
+  }
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    alert('Não foi possível carregar os componentes de exportação em PDF. Verifique a conexão com a internet e recarregue a página.');
+    return;
+  }
+  const recs = recordsForSelected();
+  if(!recs.length){
+    alert('Não há leituras para este colaborador nos filtros atuais.');
+    return;
+  }
+
+  const btn = document.getElementById('btnExportPdf');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Gerando PDF...';
+
+  try{
+    const ordered = orderedRoutePoints(recs);
+    const km = segmentedRouteKm(orderedRouteSegments(recs));
+    const horas = computeHorasTrabalhadas(sortBySequenceThenTime(recs));
+
+    let latest = recs[0];
+    recs.forEach(r=>{
+      const a = latest.ts ? latest.ts.getTime() : -1;
+      const b = r.ts ? r.ts.getTime() : -1;
+      if(b > a) latest = r;
+    });
+    const totalLeituras = recs.length;
+    const faltaVisitar = faltaVisitarByRota(latest.rota);
+
+    let mapImgData = null;
+    if(mapAvailable && ordered.length){
+      try{
+        const canvas = await html2canvas(document.getElementById('map'), {useCORS:true, allowTaint:false, logging:false});
+        mapImgData = canvas.toDataURL('image/png');
+      }catch(err){
+        console.error('Falha ao capturar o mapa para o PDF', err);
+      }
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm', format:'a4'});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 14;
+    let y = 16;
+
+    doc.setFillColor(15,74,143);
+    doc.rect(0,0,pageW,22,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(15);
+    doc.setFont(undefined,'bold');
+    doc.text('Monitoramento de Rota - Leitura', marginX, 13);
+    doc.setFontSize(9);
+    doc.setFont(undefined,'normal');
+    doc.text('Relatorio de Rota do Colaborador', marginX, 19);
+    y = 30;
+
+    doc.setTextColor(20,30,40);
+    doc.setFontSize(13);
+    doc.setFont(undefined,'bold');
+    doc.text(String(state.selected), marginX, y);
+    y += 7;
+
+    const infoRows = [
+      ['Grupo', latest.grupo || '-', 'Rota (Cadastro)', latest.rota || '-'],
+      ['Data Leitura (filtro)', state.filters.data || latest.dataLeituraStr || '-', 'Ultima Transmitida', latest.hora.str || '-'],
+      ['Total de Leituras', String(totalLeituras), 'Falta Visitar', String(faltaVisitar)],
+      ['Quilometros Percorridos', `${formatKm(km)} km`, 'Horas Trabalhadas', horas || '-'],
+    ];
+    doc.setFontSize(9.5);
+    infoRows.forEach(([l1,v1,l2,v2])=>{
+      doc.setFont(undefined,'bold'); doc.setTextColor(90,100,115);
+      doc.text(l1, marginX, y); doc.text(l2, marginX+95, y);
+      y += 4.6;
+      doc.setFont(undefined,'normal'); doc.setTextColor(20,30,40);
+      doc.text(String(v1), marginX, y); doc.text(String(v2), marginX+95, y);
+      y += 6.4;
+    });
+
+    y += 2;
+    doc.setDrawColor(220,226,235);
+    doc.line(marginX, y, pageW-marginX, y);
+    y += 8;
+
+    const availableH = pageH - y - 34;
+    if(mapImgData){
+      const imgProps = doc.getImageProperties(mapImgData);
+      const maxW = pageW - marginX*2;
+      let drawW = maxW;
+      let drawH = drawW * imgProps.height / imgProps.width;
+      if(drawH > availableH){
+        drawH = availableH;
+        drawW = drawH * imgProps.width / imgProps.height;
+      }
+      const drawX = marginX + (maxW-drawW)/2;
+      doc.addImage(mapImgData, 'PNG', drawX, y, drawW, drawH);
+      y += drawH + 6;
+    } else {
+      doc.setFontSize(9.5); doc.setTextColor(150,150,150);
+      doc.text('Mapa nao disponivel para captura neste relatorio.', marginX, y);
+      y += 8;
+    }
+
+    doc.setFontSize(9.5); doc.setTextColor(90,100,115); doc.setFont(undefined,'bold');
+    doc.text('Legenda:', marginX, y);
+    y += 5;
+    doc.setFont(undefined,'normal'); doc.setTextColor(20,30,40);
+    doc.setFillColor(31,162,92); doc.circle(marginX+2, y-1.3, 1.6, 'F');
+    doc.text('Ponto Inicial (Sequencia 1)', marginX+6, y);
+    doc.setFillColor(19,97,184); doc.circle(marginX+80, y-1.3, 1.6, 'F');
+    doc.text('Ponto Atual (ultima leitura)', marginX+84, y);
+    y += 5.5;
+    doc.setDrawColor(28,124,224); doc.setLineWidth(1);
+    doc.line(marginX, y-1.3, marginX+4, y-1.3);
+    doc.text('Trajeto Percorrido', marginX+6, y);
+
+    const now = new Date();
+    const genStr = `Relatorio gerado em ${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} as ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text(genStr, marginX, pageH-8);
+
+    const fname = `Rota_${String(state.selected).replace(/[^a-z0-9]+/gi,'_')}_${pad(now.getDate())}${pad(now.getMonth()+1)}${now.getFullYear()}.pdf`;
+    doc.save(fname);
+  }catch(err){
+    console.error(err);
+    alert('Erro ao gerar o PDF: '+err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+/* ==================== EXPORT GENERAL MAP PDF ==================== */
+
+document.getElementById('btnExportMapPdf').addEventListener('click', exportGeneralMapPdf);
+
+async function exportGeneralMapPdf(){
+  if(!state.data.length){
+    alert('Importe uma base antes de exportar o mapa.');
+    return;
+  }
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    alert('Não foi possível carregar os componentes de exportação em PDF. Verifique a conexão com a internet e recarregue a página.');
+    return;
+  }
+
+  const btn = document.getElementById('btnExportMapPdf');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Gerando PDF...';
+
+  try{
+    const filtered = applyFilters(state.data);
+    const byColab = groupByColaborador(filtered);
+    const names = uniqueSorted(Object.keys(byColab));
+
+    let mapImgData = null;
+    if(mapAvailable){
+      try{
+        const canvas = await html2canvas(document.querySelector('.map-wrap'), {
+          useCORS:true, allowTaint:false, logging:false,
+          ignoreElements: el => el.id==='btnExportMapPdf' || el.id==='btnToggleSidebar' || el.id==='btnFullscreen',
+        });
+        mapImgData = canvas.toDataURL('image/png');
+      }catch(err){
+        console.error('Falha ao capturar o mapa para o PDF', err);
+      }
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm', format:'a4', orientation:'landscape'});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const marginX = 12;
+    let y = 22;
+
+    doc.setFillColor(15,74,143);
+    doc.rect(0,0,pageW,16,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(13);
+    doc.setFont(undefined,'bold');
+    doc.text('Monitoramento de Rota - Mapa Geral', marginX, 10.5);
+
+    if(mapImgData){
+      const imgProps = doc.getImageProperties(mapImgData);
+      const maxW = pageW - marginX*2;
+      const maxH = pageH - y - 12;
+      let drawW = maxW, drawH = drawW * imgProps.height / imgProps.width;
+      if(drawH > maxH){
+        drawH = maxH;
+        drawW = drawH * imgProps.width / imgProps.height;
+      }
+      const drawX = marginX + (maxW-drawW)/2;
+      doc.addImage(mapImgData, 'PNG', drawX, y, drawW, drawH);
+    } else {
+      doc.setFontSize(9.5); doc.setTextColor(150,150,150);
+      doc.text('Mapa nao disponivel para captura neste relatorio.', marginX, y);
+    }
+
+    // Colaboradores summary table (own page(s), map image may be dense already)
+    doc.addPage();
+    let py = 16;
+    doc.setTextColor(20,30,40); doc.setFontSize(13); doc.setFont(undefined,'bold');
+    doc.text('Informacoes dos Colaboradores', marginX, py);
+    py += 8;
+
+    const colX = [marginX, marginX+78, marginX+103, marginX+128, marginX+156, marginX+184, marginX+216];
+    const headers = ['Colaborador','Grupo','Rota','Leituras','Falta Visitar','Km Percorridos','Ultima Transmitida'];
+    const drawTableHeader = ()=>{
+      doc.setFont(undefined,'bold'); doc.setFontSize(8.5); doc.setTextColor(90,100,115);
+      headers.forEach((h,i)=>doc.text(h, colX[i], py));
+      py += 4.5;
+      doc.setDrawColor(220,226,235);
+      doc.line(marginX, py-3.2, pageW-marginX, py-3.2);
+      doc.setFont(undefined,'normal'); doc.setTextColor(20,30,40);
+    };
+    drawTableHeader();
+
+    names.forEach(name=>{
+      const recs = byColab[name];
+      const ordered = orderedRoutePoints(recs);
+      const km = routeDistanceKm(ordered.map(r=>[r.lat,r.lon]));
+      const falta = recs.filter(isFaltaVisitarRow).length;
+      let latest = recs[0];
+      recs.forEach(r=>{
+        const a = latest.ts ? latest.ts.getTime() : -1;
+        const b = r.ts ? r.ts.getTime() : -1;
+        if(b > a) latest = r;
+      });
+      if(py > pageH - 14){
+        doc.addPage();
+        py = 16;
+        drawTableHeader();
+      }
+      const row = [
+        String(name).slice(0,42),
+        recs[0].grupo || '-',
+        recs[0].rota || '-',
+        String(recs.length),
+        String(falta),
+        `${formatKm(km)} km`,
+        `${latest.dataLeituraStr||'-'} ${latest.hora.str||''}`.trim(),
+      ];
+      row.forEach((v,i)=> doc.text(String(v), colX[i], py));
+      py += 4.6;
+    });
+
+    const now = new Date();
+    const genStr = `Relatorio gerado em ${pad(now.getDate())}/${pad(now.getMonth()+1)}/${now.getFullYear()} as ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text(genStr, marginX, pageH-6);
+
+    const fname = `Mapa_Rotas_Geral_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}.pdf`;
+    doc.save(fname);
+  }catch(err){
+    console.error(err);
+    alert('Erro ao gerar o PDF: '+err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+/* ==================== INIT ==================== */
+
+updateStatsStrip();
+setInterval(updateStatsStrip, 60000);
+
+</script>
+</body>
+</html>
